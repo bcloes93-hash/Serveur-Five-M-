@@ -1009,6 +1009,7 @@
       rl.chapters = d.chapters || []; rl.bareme = d.bareme || null; rl.updated = d.updated || "";
       if (!chapterById(rl.sel)) rl.sel = rl.chapters.length ? rl.chapters[0].id : null;
       renderRules(); fillBareme();
+      refreshMissing();
     }, function (e) { if (e.status !== 401) rlSay(e.message || "Chargement impossible.", false); });
   }
 
@@ -1240,6 +1241,82 @@
       : q ? "Filtre actif : la réorganisation par glisser-déposer est désactivée." : ch.rules.length + (ch.rules.length > 1 ? " règles" : " règle") + " dans ce chapitre.";
   }
   $("#rl-filter").addEventListener("input", function () { rl.filter = this.value; renderRules(); });
+
+  /* --- chapitres de la version d'origine absents du panel (ex. une Charte ajoutée après l'import) --- */
+  // On les ajoute sans toucher au reste, avec les routes habituelles : rien n'est effacé ni remplacé.
+  var origin = null;   // data/reglement.json, lu une seule fois
+  function dismissed() { try { return JSON.parse(localStorage.getItem("sl_rl_dismissed") || "[]"); } catch (e) { return []; } }
+  function loadOrigin() {
+    if (origin) return Promise.resolve(origin);
+    return fetch("data/reglement.json", { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error("introuvable"); return r.json(); }).then(function (d) { origin = d; return d; });
+  }
+  function missingChapters() {
+    if (!origin) return [];
+    var have = rl.chapters.map(function (c) { return RENDER.fold(c.title).trim(); }), hidden = dismissed(), out = [];
+    (origin.chapters || []).forEach(function (c, i) {
+      var key = RENDER.fold(c.title).trim();
+      if (have.indexOf(key) === -1 && hidden.indexOf(key) === -1) out.push({ chapter: c, index: i, key: key });
+    });
+    return out;
+  }
+  function refreshMissing() {
+    var box = $("#rl-missing-box");
+    box.hidden = true;
+    if (!rl.initialized || rl.missing || !canRules()) return;
+    loadOrigin().then(function () {
+      var list = missingChapters();
+      if (!list.length) return;
+      var names = list.map(function (m) { return "« " + m.chapter.title + " » (" + m.chapter.rules.length + (m.chapter.rules.length > 1 ? " règles" : " règle") + ")"; }).join(", ");
+      $("#rl-missing-text").textContent = "La version d'origine contient " + (list.length > 1 ? list.length + " chapitres absents" : "un chapitre absent") + " de votre règlement : " + names + ". Vous pouvez " + (list.length > 1 ? "les" : "l'") + "ajouter sans toucher au reste.";
+      box.hidden = false;
+    }, function () { /* pas de version d'origine à proposer */ });
+  }
+  $("#rl-missing-hide").addEventListener("click", function () {
+    var hidden = dismissed();
+    missingChapters().forEach(function (m) { hidden.push(m.key); });
+    try { localStorage.setItem("sl_rl_dismissed", JSON.stringify(hidden)); } catch (e) { /* stockage indisponible : la proposition reviendra */ }
+    $("#rl-missing-box").hidden = true;
+  });
+  $("#rl-missing-btn").addEventListener("click", function () {
+    var list = missingChapters();
+    if (!list.length) return;
+    if (!window.confirm("Ajouter à votre règlement : " + list.map(function (m) { return "« " + m.chapter.title + " »"; }).join(", ") + " ?\n\nLe reste de votre règlement n'est pas modifié.")) return;
+    var btn = $("#rl-missing-btn"); btn.disabled = true;
+    rlSay("");
+    var order = rl.chapters.map(function (c) { return c.id; });
+    var created = [];   // pour défaire un ajout interrompu
+    var chain = Promise.resolve();
+    list.forEach(function (m) {
+      chain = chain.then(function () {
+        var c = m.chapter, rules = c.rules || [], i = 0;
+        rlSay("Ajout du chapitre « " + c.title + " »…");
+        return api("POST", "/api/rule-chapters", { title: c.title, intro: c.intro || "", numbered: c.numbered !== false, published: true }).then(function (out) {
+          var chapterId = out.id;
+          created.push({ chapter: chapterId, rules: [] });
+          var mine = created[created.length - 1];
+          function next() {
+            if (i >= rules.length) return null;
+            var r = rules[i++];
+            rlSay("Ajout du chapitre « " + c.title + " » : règle " + i + " sur " + rules.length + "…");
+            return api("POST", "/api/rules", { chapter_id: chapterId, title: r.title, body: r.body, important: r.important === true, published: true }).then(function (o) { mine.rules.push(o.id); return next(); });
+          }
+          return Promise.resolve(next()).then(function () { order.splice(Math.min(m.index, order.length), 0, chapterId); });
+        });
+      });
+    });
+    chain.then(function () { return api("PUT", "/api/rule-chapters/order", { ids: order }); }).then(function () {
+      return loadRules().then(function () { rlSay("Chapitre ajouté à votre règlement, à sa place d'origine. Il est déjà visible sur le site.", true); });
+    }, function (err) {
+      if (err && err.status === 401) return;
+      // Échec : on retire ce qui a été créé à moitié, pour pouvoir recommencer proprement
+      var undo = Promise.resolve();
+      created.forEach(function (x) {
+        x.rules.forEach(function (id) { undo = undo.then(function () { return api("DELETE", "/api/rules/" + id).catch(function () {}); }); });
+        undo = undo.then(function () { return api("DELETE", "/api/rule-chapters/" + x.chapter).catch(function () {}); });
+      });
+      return undo.then(function () { return loadRules(); }).then(function () { rlSay((err && err.message) || "L'ajout a échoué : rien n'a été modifié. Réessayez dans un instant.", false); });
+    }).then(function () { btn.disabled = false; });
+  });
 
   /* --- éditeur de règle --- */
   function chapterOptions(select, current) {

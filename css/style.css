@@ -486,6 +486,8 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .rl__status:empty { display: none; }
 .rl__import { margin-top: 18px; padding: 18px 20px; border-radius: 12px; border: 1px solid rgba(34, 211, 255, 0.55); background: rgba(34, 211, 255, 0.07); display: grid; gap: 12px; justify-items: start; }
 .rl__import p { margin: 0; color: var(--text); }
+.rl__missing-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.rl__import[hidden] { display: none; }
 .rl__danger { margin-top: 26px; padding-top: 16px; border-top: 1px dashed var(--border); }
 .rl { display: grid; grid-template-columns: minmax(270px, 350px) minmax(0, 1fr); gap: 24px; margin-top: 18px; align-items: start; }
 .rl[hidden] { display: none; }

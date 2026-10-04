@@ -54,6 +54,9 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
     Grave, Critique), une introduction et un texte facultatif par niveau. C'est une section **séparée** : aucune règle n'est
     reliée à un niveau ni à une sanction. Il est distinct du barème privé du staff (*Sanctions → Barème*).
   - La date « Dernière mise à jour » du site ne change que lorsqu'un changement touche du contenu **publié**.
+  - **Chapitres d'origine absents** : si `data/reglement.json` contient un chapitre que votre règlement n'a pas (par
+    exemple la *Charte Whitelist* ajoutée après l'import), un encadré propose de **l'ajouter sans toucher au reste** (rien
+    n'est effacé ni remplacé, le chapitre prend sa place d'origine). « Ne plus me le proposer » masque la proposition.
   - Chaque action est inscrite dans le journal d'activité.
 - **Journal de sanctions** (onglet *Sanctions → Journal*) : avertissement, expulsion, bannissement temporaire ou définitif, note ; recherche par joueur,
   identifiant ou motif ; chaque ligne garde l'auteur et la date.
