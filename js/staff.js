@@ -76,10 +76,11 @@
       t.setAttribute("aria-selected", String(on));
       t.tabIndex = on ? 0 : -1;
     });
-    ["home", "sanctions", "commands", "org", "audit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
+    ["home", "sanctions", "commands", "org", "rules", "audit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
     if (name === "sanctions") setSub(subView);
     if (name === "commands") { loadCommands(); if (!cmdState.editing) cForm.elements.platform.value = cmdState.platform; }
     if (name === "org") loadOrg();
+    if (name === "rules") loadRules();
     if (name === "audit") loadAudit();
   }
   tabs.forEach(function (t, i) {
@@ -965,6 +966,447 @@
     }).then(function () { btn.disabled = false; });
   });
 
+  /* ---------- Règlement : chapitres, règles, barème indicatif ---------- */
+  // Les numéros (5.12) ne sont pas saisis : ils suivent l'ordre choisi ici et ne comptent que ce qui est publié (comme sur le site).
+  var RENDER = window.SLRules;
+  var rl = { loaded: false, initialized: false, missing: false, chapters: [], bareme: null, updated: "", sel: null, filter: "", drag: null, editRule: null, editChapter: null };
+  var rlStatus = $("#rl-status"), rlHint = $("#rl-hint");
+  var rDlg = $("#rl-rule-dialog"), rForm = $("#rl-rule-form"), rBody = $("#rl-r-body"), rStatus = $("#rl-r-status");
+  var chDlg = $("#rl-chapter-dialog"), chForm = $("#rl-chapter-form"), chStatus = $("#rl-c-status");
+  function canRules() { return atLeast("manager"); }
+  function rlSay(text, ok) { rlStatus.className = "form__status rl__status" + (ok ? " form__status--ok" : ""); rlStatus.textContent = text || ""; }
+  function chapterById(id) { return rl.chapters.filter(function (c) { return c.id === id; })[0] || null; }
+  function findRule(id) {
+    for (var i = 0; i < rl.chapters.length; i++) {
+      var r = rl.chapters[i].rules.filter(function (x) { return x.id === id; })[0];
+      if (r) return { rule: r, chapter: rl.chapters[i] };
+    }
+    return null;
+  }
+  function openDialog(d) { if (d.showModal) d.showModal(); else d.setAttribute("open", ""); }
+  function closeDialog(d) { if (d.close) d.close(); else d.removeAttribute("open"); }
+
+  // Numérotation publique : chapitres numérotés et publiés, règles publiées dans un chapitre publié
+  function numbering() {
+    var n = 0, out = { chap: {}, rule: {} };
+    rl.chapters.forEach(function (c) {
+      var k = 0;
+      if (c.published && c.numbered) { n++; out.chap[c.id] = "Chapitre " + n; }
+      else out.chap[c.id] = c.published ? "Sans numéro" : "Brouillon";
+      c.rules.forEach(function (r) {
+        if (!c.published || !r.published) return;
+        k++;
+        out.rule[r.id] = c.numbered ? n + "." + k : "•";
+      });
+    });
+    return out;
+  }
+  function plain1(text, max) { var t = RENDER.plain(text); return t.length > max ? t.slice(0, max).replace(/\s+\S*$/, "") + "…" : t; }
+
+  function loadRules() {
+    return api("GET", "/api/rules").then(function (d) {
+      rl.loaded = true; rl.missing = !!d.missing; rl.initialized = !!d.initialized;
+      rl.chapters = d.chapters || []; rl.bareme = d.bareme || null; rl.updated = d.updated || "";
+      if (!chapterById(rl.sel)) rl.sel = rl.chapters.length ? rl.chapters[0].id : null;
+      renderRules(); fillBareme();
+    }, function (e) { if (e.status !== 401) rlSay(e.message || "Chargement impossible.", false); });
+  }
+
+  /* --- glisser-déposer --- */
+  function clearMarks() { $$(".rl__item--before, .rl__item--after, .rl__chap--over, .is-dragging").forEach(function (n) { n.classList.remove("rl__item--before", "rl__item--after", "rl__chap--over", "is-dragging"); }); }
+  function side(e, li) { var r = li.getBoundingClientRect(); return e.clientY < r.top + r.height / 2 ? "before" : "after"; }
+  function makeDraggable(li, kind, id) {
+    li.draggable = true;
+    li.addEventListener("dragstart", function (e) {
+      rl.drag = { kind: kind, id: id };
+      li.classList.add("is-dragging");
+      if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", kind + ":" + id); } catch (x) { /* navigateur ancien */ } }
+    });
+    li.addEventListener("dragend", function () { rl.drag = null; clearMarks(); });
+  }
+  function reorder(ids, movedId, targetId, after) {
+    var out = ids.filter(function (x) { return x !== movedId; });
+    var at = out.indexOf(targetId);
+    out.splice(at < 0 ? out.length : at + (after ? 1 : 0), 0, movedId);
+    return out;
+  }
+
+  // Enregistre un nouvel ordre pour les règles d'un chapitre (ou le déplacement d'une règle dans ce chapitre)
+  function saveRuleOrder(chapterId, ids, doneText) {
+    rlSay("");
+    var all = {};
+    rl.chapters.forEach(function (c) { c.rules.forEach(function (r) { all[r.id] = r; }); });
+    rl.chapters.forEach(function (c) { c.rules = c.rules.filter(function (r) { return ids.indexOf(r.id) === -1; }); });
+    chapterById(chapterId).rules = ids.map(function (id) { all[id].chapter_id = chapterId; return all[id]; });
+    renderRules();
+    return api("PUT", "/api/rules/order", { chapter_id: chapterId, ids: ids }).then(function () {
+      return loadRules().then(function () { rlSay(doneText || "Ordre enregistré.", true); });
+    }, function (err) {
+      if (err.status !== 401) rlSay(err.message || "Enregistrement impossible : l'ordre n'a pas été modifié.", false);
+      return loadRules();
+    });
+  }
+  function saveChapterOrder(ids) {
+    rlSay("");
+    var by = {};
+    rl.chapters.forEach(function (c) { by[c.id] = c; });
+    rl.chapters = ids.map(function (id) { return by[id]; });
+    renderRules();
+    return api("PUT", "/api/rule-chapters/order", { ids: ids }).then(function () {
+      return loadRules().then(function () { rlSay("Ordre des chapitres enregistré. Les numéros se sont mis à jour.", true); });
+    }, function (err) {
+      if (err.status !== 401) rlSay(err.message || "Enregistrement impossible : l'ordre n'a pas été modifié.", false);
+      return loadRules();
+    });
+  }
+  function moveRuleTo(ruleId, chapterId) {
+    var hit = findRule(ruleId), target = chapterById(chapterId);
+    if (!hit || !target || hit.chapter.id === chapterId) return;
+    var ids = target.rules.map(function (r) { return r.id; }).concat([ruleId]);
+    var label = numbering().chap[target.id];
+    saveRuleOrder(chapterId, ids, "« " + hit.rule.title + " » est maintenant en fin du chapitre « " + target.title + " »" + (label && label.indexOf("Chapitre") === 0 ? " (" + label + ")" : "") + ".");
+  }
+
+  /* --- actions sur une règle --- */
+  function patchRule(rule, fields, doneText) {
+    rlSay("");
+    return api("PUT", "/api/rules/" + encodeURIComponent(rule.id), fields).then(function () {
+      return loadRules().then(function () { rlSay(doneText, true); });
+    }, function (err) { if (err.status !== 401) rlSay(err.message || "Enregistrement impossible.", false); });
+  }
+  function deleteRule(rule) {
+    if (!window.confirm("Supprimer définitivement la règle « " + rule.title + " » ?\n\nPour la retirer du site sans la perdre, utilisez plutôt « Dépublier ».")) return;
+    rlSay("");
+    api("DELETE", "/api/rules/" + encodeURIComponent(rule.id)).then(function () { return loadRules().then(function () { rlSay("Règle supprimée.", true); }); }, function (err) { if (err.status !== 401) rlSay(err.message || "Suppression impossible.", false); });
+  }
+  function nudge(rule, chapter, delta) {
+    var ids = chapter.rules.map(function (r) { return r.id; }), i = ids.indexOf(rule.id), j = i + delta;
+    if (j < 0 || j >= ids.length) return;
+    ids.splice(i, 1); ids.splice(j, 0, rule.id);
+    saveRuleOrder(chapter.id, ids, "Ordre enregistré.");
+  }
+
+  function actBtn(label, onClick, cls, aria) {
+    var b = el("button", "btn btn--small btn--link" + (cls ? " " + cls : ""), label);
+    b.type = "button";
+    if (aria) b.setAttribute("aria-label", aria);
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function ruleItem(rule, chapter, nums, canDrag) {
+    var li = el("li", "rl__item rl__rule" + (rule.published ? "" : " is-draft") + (rule.important ? " is-important" : ""));
+    li.setAttribute("data-id", String(rule.id));
+    var top = el("div", "rl__top");
+    var grip = el("span", "rl__grip", canDrag ? "⠿" : ""); grip.setAttribute("aria-hidden", "true");
+    top.appendChild(grip);
+    top.appendChild(el("span", "rl__num", rule.published && chapter.published ? nums.rule[rule.id] : "—"));
+    var name = el("div", "rl__namebox");
+    name.appendChild(el("strong", "rl__name", rule.title));
+    var snip = plain1(rule.body, 110);
+    if (snip) name.appendChild(el("span", "rl__snip", snip));
+    top.appendChild(name);
+    var flags = el("div", "rl__flags");
+    if (!rule.published) flags.appendChild(el("span", "rl__flag rl__flag--draft", "Brouillon"));
+    if (rule.important) flags.appendChild(el("span", "rl__flag rl__flag--imp", "Importante"));
+    top.appendChild(flags);
+    li.appendChild(top);
+
+    var acts = el("div", "rl__acts");
+    acts.appendChild(actBtn("Modifier", function () { openRule(rule); }, "", "Modifier la règle " + rule.title));
+    acts.appendChild(actBtn(rule.published ? "Dépublier" : "Publier", function () {
+      patchRule(rule, { published: !rule.published }, rule.published ? "« " + rule.title + " » n'est plus visible sur le site (brouillon)." : "« " + rule.title + " » est publiée sur le site.");
+    }, "", (rule.published ? "Dépublier " : "Publier ") + rule.title));
+    var star = actBtn(rule.important ? "★ Importante" : "☆ Mettre en avant", function () {
+      patchRule(rule, { important: !rule.important }, rule.important ? "« " + rule.title + " » n'est plus mise en avant." : "« " + rule.title + " » est mise en avant sur le site.");
+    }, "rl__star", (rule.important ? "Retirer des règles importantes : " : "Marquer comme importante : ") + rule.title);
+    star.setAttribute("aria-pressed", String(rule.important));
+    acts.appendChild(star);
+    var idx = chapter.rules.indexOf(rule);
+    var up = actBtn("↑", function () { nudge(rule, chapter, -1); }, "rl__arrow", "Monter " + rule.title), down = actBtn("↓", function () { nudge(rule, chapter, 1); }, "rl__arrow", "Descendre " + rule.title);
+    up.disabled = !canDrag || idx === 0; down.disabled = !canDrag || idx === chapter.rules.length - 1;
+    acts.appendChild(up); acts.appendChild(down);
+    if (rl.chapters.length > 1) {
+      var sel = el("select", "rl__move");
+      sel.setAttribute("aria-label", "Déplacer « " + rule.title + " » vers un autre chapitre");
+      sel.appendChild(new Option("Déplacer vers…", ""));
+      rl.chapters.forEach(function (c) { if (c.id !== chapter.id) sel.appendChild(new Option((nums.chap[c.id] && nums.chap[c.id].indexOf("Chapitre") === 0 ? nums.chap[c.id] + " · " : "") + c.title, String(c.id))); });
+      sel.addEventListener("change", function () { if (sel.value) moveRuleTo(rule.id, Number(sel.value)); });
+      acts.appendChild(sel);
+    }
+    acts.appendChild(actBtn("Supprimer", function () { deleteRule(rule); }, "btn--danger", "Supprimer la règle " + rule.title));
+    li.appendChild(acts);
+
+    if (canDrag) {
+      makeDraggable(li, "rule", rule.id);
+      li.addEventListener("dragover", function (e) {
+        if (!rl.drag || rl.drag.kind !== "rule" || rl.drag.id === rule.id || !chapter.rules.some(function (r) { return r.id === rl.drag.id; })) return;
+        e.preventDefault();
+        var s = side(e, li);
+        li.classList.toggle("rl__item--before", s === "before"); li.classList.toggle("rl__item--after", s === "after");
+      });
+      li.addEventListener("dragleave", function (e) { if (!e.relatedTarget || !li.contains(e.relatedTarget)) li.classList.remove("rl__item--before", "rl__item--after"); });
+      li.addEventListener("drop", function (e) {
+        if (!rl.drag || rl.drag.kind !== "rule") return;
+        e.preventDefault();
+        var moved = rl.drag.id, after = side(e, li) === "after";
+        rl.drag = null; clearMarks();
+        if (moved === rule.id) return;
+        saveRuleOrder(chapter.id, reorder(chapter.rules.map(function (r) { return r.id; }), moved, rule.id, after), "Ordre enregistré.");
+      });
+    }
+    return li;
+  }
+
+  function chapterItem(c, i, nums) {
+    var li = el("li", "rl__item rl__chap" + (c.id === rl.sel ? " is-active" : "") + (c.published ? "" : " is-draft"));
+    li.setAttribute("data-id", String(c.id));
+    var grip = el("span", "rl__grip", "⠿"); grip.setAttribute("aria-hidden", "true");
+    li.appendChild(grip);
+    var pick = el("button", "rl__pick");
+    pick.type = "button";
+    if (c.id === rl.sel) pick.setAttribute("aria-current", "true");
+    pick.appendChild(el("span", "rl__label", nums.chap[c.id]));
+    pick.appendChild(el("span", "rl__name", c.title));
+    pick.addEventListener("click", function () { rl.sel = c.id; rl.filter = ""; $("#rl-filter").value = ""; renderRules(); });
+    li.appendChild(pick);
+    li.appendChild(el("span", "rl__count", String(c.rules.length)));
+    var mv = el("span", "rl__mv");
+    var up = actBtn("↑", function () { var ids = rl.chapters.map(function (x) { return x.id; }); ids.splice(i, 1); ids.splice(i - 1, 0, c.id); saveChapterOrder(ids); }, "rl__arrow", "Monter le chapitre " + c.title);
+    var down = actBtn("↓", function () { var ids = rl.chapters.map(function (x) { return x.id; }); ids.splice(i, 1); ids.splice(i + 1, 0, c.id); saveChapterOrder(ids); }, "rl__arrow", "Descendre le chapitre " + c.title);
+    up.disabled = i === 0; down.disabled = i === rl.chapters.length - 1;
+    mv.appendChild(up); mv.appendChild(down);
+    li.appendChild(mv);
+
+    makeDraggable(li, "chapter", c.id);
+    li.addEventListener("dragover", function (e) {
+      if (!rl.drag) return;
+      if (rl.drag.kind === "rule") { e.preventDefault(); li.classList.add("rl__chap--over"); }
+      else if (rl.drag.kind === "chapter" && rl.drag.id !== c.id) {
+        e.preventDefault();
+        var s = side(e, li);
+        li.classList.toggle("rl__item--before", s === "before"); li.classList.toggle("rl__item--after", s === "after");
+      }
+    });
+    li.addEventListener("dragleave", function (e) { if (!e.relatedTarget || !li.contains(e.relatedTarget)) li.classList.remove("rl__item--before", "rl__item--after", "rl__chap--over"); });
+    li.addEventListener("drop", function (e) {
+      if (!rl.drag) return;
+      e.preventDefault();
+      var d = rl.drag, after = side(e, li) === "after";
+      rl.drag = null; clearMarks();
+      if (d.kind === "rule") moveRuleTo(d.id, c.id);
+      else if (d.id !== c.id) saveChapterOrder(reorder(rl.chapters.map(function (x) { return x.id; }), d.id, c.id, after));
+    });
+    return li;
+  }
+
+  function renderRules() {
+    var ready = rl.loaded && !rl.missing && rl.initialized;
+    $("#rl-missing").hidden = !rl.missing;
+    $("#rl-import").hidden = !(rl.loaded && !rl.missing && !rl.initialized);
+    $("#rl-import-btn").hidden = !atLeast("founder");
+    $("#rl-import-note").hidden = atLeast("founder");
+    $("#rl-main").hidden = !ready; $("#rl-bar").hidden = !ready;
+    $("#rl-reset-box").hidden = !(ready && atLeast("founder"));
+    if (!ready) return;
+    var nums = numbering();
+    $("#rl-updated").textContent = rl.updated ? "Dernière mise à jour publique : " + fmtDate(rl.updated) : "";
+
+    var chapters = $("#rl-chapters"); clear(chapters);
+    rl.chapters.forEach(function (c, i) { chapters.appendChild(chapterItem(c, i, nums)); });
+    if (!rl.chapters.length) chapters.appendChild(el("li", "cmd__empty", "Aucun chapitre. Ajoutez-en un."));
+
+    var ch = chapterById(rl.sel), list = $("#rl-rules"), acts = $("#rl-chapter-acts");
+    clear(list); clear(acts);
+    $("#rl-add-rule").disabled = !ch;
+    if (!ch) { $("#rl-chapter-title").textContent = "Règles"; rlHint.textContent = ""; return; }
+    $("#rl-chapter-title").textContent = (nums.chap[ch.id] && nums.chap[ch.id].indexOf("Chapitre") === 0 ? nums.chap[ch.id] + " · " : "") + ch.title;
+    acts.appendChild(actBtn("Modifier le chapitre", function () { openChapter(ch); }));
+    acts.appendChild(actBtn(ch.published ? "Dépublier le chapitre" : "Publier le chapitre", function () {
+      rlSay("");
+      api("PUT", "/api/rule-chapters/" + encodeURIComponent(ch.id), { published: !ch.published }).then(function () { var was = ch.published, t = ch.title; return loadRules().then(function () { rlSay(was ? "Le chapitre « " + t + " » n'est plus visible sur le site." : "Le chapitre « " + t + " » est publié.", true); }); }, function (err) { if (err.status !== 401) rlSay(err.message || "Enregistrement impossible.", false); });
+    }));
+    acts.appendChild(actBtn("Supprimer le chapitre", function () {
+      if (!window.confirm("Supprimer le chapitre « " + ch.title + " » ? (Il doit être vide.)")) return;
+      rlSay("");
+      api("DELETE", "/api/rule-chapters/" + encodeURIComponent(ch.id)).then(function () { rl.sel = null; return loadRules().then(function () { rlSay("Chapitre supprimé.", true); }); }, function (err) { if (err.status !== 401) rlSay(err.message || "Suppression impossible.", false); });
+    }, "btn--danger"));
+
+    var q = RENDER.fold(rl.filter).trim();
+    var shown = ch.rules.filter(function (r) { return !q || RENDER.fold(r.title + " " + RENDER.plain(r.body)).indexOf(q) !== -1; });
+    var canDrag = !q;
+    shown.forEach(function (r) { list.appendChild(ruleItem(r, ch, nums, canDrag)); });
+    rlHint.textContent = !ch.rules.length ? "Ce chapitre est vide. Ajoutez une règle, ou glissez-en une depuis un autre chapitre." : !shown.length ? "Aucune règle ne correspond au filtre."
+      : q ? "Filtre actif : la réorganisation par glisser-déposer est désactivée." : ch.rules.length + (ch.rules.length > 1 ? " règles" : " règle") + " dans ce chapitre.";
+  }
+  $("#rl-filter").addEventListener("input", function () { rl.filter = this.value; renderRules(); });
+
+  /* --- éditeur de règle --- */
+  function chapterOptions(select, current) {
+    clear(select);
+    var nums = numbering();
+    rl.chapters.forEach(function (c) { select.appendChild(new Option((nums.chap[c.id] && nums.chap[c.id].indexOf("Chapitre") === 0 ? nums.chap[c.id] + " · " : "") + c.title, String(c.id))); });
+    select.value = String(current);
+  }
+  var previewTimer = null;
+  function updatePreview() {
+    var box = $("#rl-r-preview"); clear(box);
+    var text = rBody.value;
+    if (!text.trim()) { box.appendChild(el("p", "rl__prevempty", "L'aperçu apparaît ici dès que vous écrivez.")); return; }
+    RENDER.render(text, box, { chapterHref: function () { return "#"; } });
+  }
+  $("#rl-r-preview").addEventListener("click", function (e) { if (e.target.closest("a")) e.preventDefault(); });
+  rBody.addEventListener("input", function () { clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 120); });
+
+  function openRule(rule) {
+    rl.editRule = rule ? rule.id : null;
+    var f = rForm.elements, nums = numbering();
+    chapterOptions(f.chapter_id, rule ? rule.chapter_id : rl.sel);
+    f.title.value = rule ? rule.title : ""; rBody.value = rule ? rule.body : "";
+    f.published.checked = rule ? rule.published : true; f.important.checked = rule ? rule.important : false;
+    $("#rl-rule-title").textContent = rule ? "Modifier la règle" + (nums.rule[rule.id] && /\d/.test(nums.rule[rule.id]) ? " " + nums.rule[rule.id] : "") : "Ajouter une règle";
+    $("#rl-r-submit").textContent = rule ? "Enregistrer" : "Ajouter la règle";
+    rStatus.className = "form__status"; rStatus.textContent = "";
+    updatePreview();
+    openDialog(rDlg);
+    f.title.focus();
+  }
+  $("#rl-add-rule").addEventListener("click", function () { if (rl.sel) openRule(null); });
+  $("#rl-r-cancel").addEventListener("click", function () { closeDialog(rDlg); });
+  rForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    rStatus.className = "form__status"; rStatus.textContent = "";
+    if (!rForm.reportValidity()) return;
+    var f = rForm.elements;
+    var body = { title: f.title.value, chapter_id: Number(f.chapter_id.value), body: rBody.value, published: f.published.checked, important: f.important.checked };
+    var btn = $("#rl-r-submit"); btn.disabled = true;
+    var editing = rl.editRule;
+    (editing ? api("PUT", "/api/rules/" + encodeURIComponent(editing), body) : api("POST", "/api/rules", body)).then(function (out) {
+      var id = editing || (out && out.id);
+      rl.sel = body.chapter_id; rl.filter = ""; $("#rl-filter").value = "";
+      closeDialog(rDlg);
+      return loadRules().then(function () {
+        rlSay(editing ? "Règle enregistrée." : "Règle ajoutée en fin de chapitre.", true);
+        var row = $('#rl-rules [data-id="' + String(id) + '"]');
+        if (row) { row.classList.add("rl__item--saved"); row.scrollIntoView({ block: "center" }); setTimeout(function () { row.classList.remove("rl__item--saved"); }, 2400); }
+      });
+    }, function (err) { if (err.status !== 401) { rStatus.textContent = err.message || "Enregistrement impossible."; } }).then(function () { btn.disabled = false; });
+  });
+
+  // Barre de mise en forme (insère la syntaxe dans le texte)
+  var FORMATS = [["Puce", "bullet", "* "], ["1. 2. 3.", "num", "1. "], ["Gras", "bold"], ["« Citation »", "quote"], ["Interdit", "label", "Interdit"], ["Autorisé", "label", "Autorisé"], ["Exemple", "label", "Exemple"], ["Encadré", "callout", "### "]];
+  function formatText(kind, arg) {
+    var ta = rBody, v = ta.value, s = ta.selectionStart, e = ta.selectionEnd, sel = v.slice(s, e);
+    if (kind === "bold") {
+      var inner = sel || "texte";
+      ta.value = v.slice(0, s) + "**" + inner + "**" + v.slice(e);
+      ta.setSelectionRange(s + 2, s + 2 + inner.length);
+    } else if (kind === "quote") {
+      var q = sel || "phrase citée";
+      ta.value = v.slice(0, s) + "« " + q + " »" + v.slice(e);
+      ta.setSelectionRange(s + 2, s + 2 + q.length);
+    } else {
+      var a = v.lastIndexOf("\n", s - 1) + 1, b = v.indexOf("\n", e); if (b === -1) b = v.length;
+      if (kind === "label") { ta.value = v.slice(0, a) + arg + "\n" + v.slice(a); ta.setSelectionRange(a + arg.length + 1, a + arg.length + 1); }
+      else {
+        if (kind === "callout") b = (v.indexOf("\n", a) === -1 ? v.length : v.indexOf("\n", a));   // un encadré commence à une seule ligne : son titre
+        var lines = v.slice(a, b).split("\n");
+        var has = lines.every(function (l) { return l.indexOf(arg) === 0 || (kind === "num" && /^\d+\. /.test(l)) || (kind === "bullet" && /^[*-] /.test(l)); });
+        lines = lines.map(function (l) { return has ? l.replace(/^(?:[*-] |\d+\. |### )/, "") : (l.trim() ? arg + l : l); });
+        var text = lines.join("\n");
+        ta.value = v.slice(0, a) + text + v.slice(b);
+        ta.setSelectionRange(a, a + text.length);
+      }
+    }
+    ta.focus();
+    updatePreview();
+  }
+  (function buildToolbar() {
+    var bar = $("#rl-r-tb");
+    FORMATS.forEach(function (f) {
+      var b = el("button", "rl__fmt", f[0]);
+      b.type = "button";
+      b.addEventListener("click", function () { formatText(f[1], f[2]); });
+      bar.appendChild(b);
+    });
+  })();
+
+  /* --- éditeur de chapitre --- */
+  function openChapter(ch) {
+    rl.editChapter = ch ? ch.id : null;
+    var f = chForm.elements;
+    f.title.value = ch ? ch.title : ""; f.intro.value = ch ? ch.intro : "";
+    f.numbered.checked = ch ? ch.numbered : true; f.published.checked = ch ? ch.published : true;
+    $("#rl-chapter-dtitle").textContent = ch ? "Modifier le chapitre" : "Ajouter un chapitre";
+    $("#rl-c-submit").textContent = ch ? "Enregistrer" : "Ajouter le chapitre";
+    chStatus.className = "form__status"; chStatus.textContent = "";
+    openDialog(chDlg);
+    f.title.focus();
+  }
+  $("#rl-add-chapter").addEventListener("click", function () { openChapter(null); });
+  $("#rl-c-cancel").addEventListener("click", function () { closeDialog(chDlg); });
+  chForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    chStatus.className = "form__status"; chStatus.textContent = "";
+    if (!chForm.reportValidity()) return;
+    var f = chForm.elements, body = { title: f.title.value, intro: f.intro.value, numbered: f.numbered.checked, published: f.published.checked };
+    var btn = $("#rl-c-submit"); btn.disabled = true;
+    var editing = rl.editChapter;
+    (editing ? api("PUT", "/api/rule-chapters/" + encodeURIComponent(editing), body) : api("POST", "/api/rule-chapters", body)).then(function (out) {
+      if (!editing && out && out.id) rl.sel = out.id;
+      closeDialog(chDlg);
+      return loadRules().then(function () { rlSay(editing ? "Chapitre enregistré." : "Chapitre ajouté en dernière position : glissez-le pour le placer.", true); });
+    }, function (err) { if (err.status !== 401) chStatus.textContent = err.message || "Enregistrement impossible."; }).then(function () { btn.disabled = false; });
+  });
+
+  /* --- import du règlement d'origine (fondateur) --- */
+  function importOriginal(replace) {
+    var ask = replace
+      ? "Remplacer TOUT le règlement par la version d'origine ?\n\nToutes les modifications faites depuis le panel (textes, ordre, ajouts, publications) seront perdues. Cette action est irréversible."
+      : "Importer le règlement d'origine dans le panel ?\n\nLes textes sont repris tels quels. Le site continue d'afficher la même chose.";
+    if (!window.confirm(ask)) return;
+    var btns = [$("#rl-import-btn"), $("#rl-reset")];
+    btns.forEach(function (b) { b.disabled = true; });
+    rlSay("Lecture du règlement d'origine…", false);
+    fetch("data/reglement.json", { cache: "no-store" }).then(function (r) { if (!r.ok) throw { message: "Le fichier du règlement d'origine est introuvable sur le site." }; return r.json(); }).then(function (data) {
+      var chapters = data.chapters || [], i = 0;
+      return api("POST", "/api/rules/import", { mode: "reset", confirm: true }).then(function next() {
+        if (i >= chapters.length) return api("POST", "/api/rules/import", { mode: "done" });
+        var c = chapters[i];
+        rlSay("Import en cours : chapitre " + (i + 1) + " sur " + chapters.length + "…", false);
+        return api("POST", "/api/rules/import", { mode: "chapter", chapter: { title: c.title, intro: c.intro, numbered: c.numbered !== false }, rules: c.rules }).then(function () { i++; return next(); });
+      });
+    }).then(function () {
+      rl.sel = null;
+      return loadRules().then(function () { rlSay("Règlement importé : il est maintenant géré depuis ce panel.", true); });
+    }, function (err) { if (err.status !== 401) rlSay((err && err.message) || "Import impossible. Rien n'a été publié ; vous pouvez réessayer.", false); }).then(function () { btns.forEach(function (b) { b.disabled = false; }); });
+  }
+  $("#rl-import-btn").addEventListener("click", function () { importOriginal(false); });
+  $("#rl-reset").addEventListener("click", function () { importOriginal(true); });
+
+  /* --- barème indicatif (quatre niveaux) --- */
+  var bForm = $("#rl-bareme-form"), bStatus = $("#rb-status");
+  function fillBareme() {
+    if (!rl.bareme) return;
+    bForm.elements.intro.value = rl.bareme.intro || "";
+    (rl.bareme.levels || []).forEach(function (l) { if (bForm.elements[l.key]) bForm.elements[l.key].value = l.body || ""; });
+  }
+  bForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    bStatus.className = "form__status"; bStatus.textContent = "";
+    var f = bForm.elements, btn = $("#rb-submit"); btn.disabled = true;
+    api("PUT", "/api/rules-bareme", { intro: f.intro.value, levels: { mineure: f.mineure.value, moderee: f.moderee.value, grave: f.grave.value, critique: f.critique.value } }).then(function () {
+      return loadRules().then(function () { bStatus.className = "form__status form__status--ok"; bStatus.textContent = "Barème enregistré."; });
+    }, function (err) { if (err.status !== 401) bStatus.textContent = err.message || "Enregistrement impossible."; }).then(function () { btn.disabled = false; });
+  });
+  $$(".seg__btn[data-rsub]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var name = b.getAttribute("data-rsub");
+      $$(".seg__btn[data-rsub]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      $("#rsub-rules").hidden = name !== "rules"; $("#rsub-bareme").hidden = name !== "bareme";
+    });
+  });
+
   /* ---------- Journal d'activité (administration) ---------- */
   function loadAudit() {
     var ul = $("#audit-list");
@@ -990,6 +1432,7 @@
     if (me.avatar && /^https:\/\/cdn\.discordapp\.com\//.test(me.avatar)) { img.src = me.avatar; img.hidden = false; }
     else img.hidden = true;
     $$("[data-admin]").forEach(function (t) { t.hidden = !isAdmin(); });
+    $$("[data-manager]").forEach(function (t) { t.hidden = !atLeast("manager"); });   // règlement : manager et fondateur
     // On ne peut réserver une commande qu'à son propre niveau ou à un niveau inférieur.
     $$("#c-level option").forEach(function (o) { o.disabled = RANK[o.value] > RANK[me.level]; });
     // Niveau « support » : uniquement le barème (pas de journal des sanctions)

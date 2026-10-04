@@ -7,7 +7,8 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | Fichier | Rôle |
 | --- | --- |
 | `index.html` | Accueil : bannière, statut en direct, présentation, étapes pour rejoindre |
-| `reglement.html` | Règlement (conditions d'accès, mort RP, commerce réel et streams fournis par le fondateur ; le reste est un texte type à adapter) |
+| `reglement.html`, `js/reglement.js`, `js/rules-render.js` | Page Règlement : chapitres à gauche, règle choisie à droite, recherche, adresses directes (`#r5-12`), date de mise à jour, barème indicatif. Le contenu est géré depuis le panel staff (onglet *Règlement*) |
+| `data/reglement.json` | Version d'origine du règlement (import initial dans le panel, et filet de sécurité si le panel est injoignable) |
 | `equipe.html` | Équipe du serveur (fondateur, manager, admins, modérateur) |
 | `candidature.html` | Candidature WL (joueur) et candidature Staff, en deux onglets |
 | `js/config.js` | **Seul fichier à modifier** : lien Discord et code cfx.re |
@@ -15,7 +16,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `js/main.js` | Menu mobile, animations, statistiques Discord et FiveM |
 | `js/candidature.js` | Onglets, validation et envoi des candidatures |
 | `worker/` | Relais Cloudflare qui poste les candidatures dans Discord (`relay.mjs`, tests, notice) |
-| `staff.html`, `js/staff.js` | Page du panel staff (connexion Discord, sanctions : barème et journal, commandes, organigramme) |
+| `staff.html`, `js/staff.js` | Page du panel staff (connexion Discord, sanctions : barème et journal, commandes, organigramme, règlement) |
 | `panel/` | Relais Cloudflare du panel staff : connexion, droits, base de données (`worker.mjs`, `schema.sql`, tests, notice) |
 | `assets/` | Logo et bannières |
 

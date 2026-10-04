@@ -22,7 +22,16 @@ function makeD1() {
     async all() { return { success: true, results: stmt.all(...args).map((r) => ({ ...r })) }; },
     async first() { const r = stmt.get(...args); return r ? { ...r } : null; },
   });
-  return { raw: db, prepare(sql) { const stmt = db.prepare(sql); return { ...wrap(stmt, []), bind: (...args) => wrap(stmt, args) }; } };
+  return {
+    raw: db,
+    prepare(sql) { const stmt = db.prepare(sql); return { ...wrap(stmt, []), bind: (...args) => wrap(stmt, args) }; },
+    // D1 : les requêtes d'un paquet s'exécutent ensemble, ou pas du tout.
+    async batch(statements) {
+      db.exec("BEGIN");
+      try { const out = []; for (const st of statements) out.push(await st.run()); db.exec("COMMIT"); return out; }
+      catch (e) { db.exec("ROLLBACK"); throw e; }
+    },
+  };
 }
 
 const makeEnv = (over = {}) => ({
@@ -752,7 +761,7 @@ test("fichiers SQL : aucun commentaire, et collés sur une seule ligne (comme le
   };
   const normal = build((s) => s);
   assert.equal(build(oneLine), normal);
-  assert.deepEqual(JSON.parse(normal).columns.map((c) => c[0]), ["audit", "commands", "org", "penalties", "sanctions"]);
+  assert.deepEqual(JSON.parse(normal).columns.map((c) => c[0]), ["audit", "commands", "org", "penalties", "rule_chapters", "rule_levels", "rules", "rules_meta", "sanctions"]);
   assert.equal(JSON.parse(normal).org.length, 6);
   assert.equal(JSON.parse(normal).penalties.length, 13);
 });
@@ -964,4 +973,284 @@ test("migration des niveaux : sans commentaire, conserve les commandes d'une anc
   fresh.exec(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
   const cols = (d) => d.prepare("PRAGMA table_info(commands)").all().map((c) => [c.name, c.type, c.notnull, c.dflt_value]);
   assert.deepEqual(cols(db), cols(fresh));
+});
+
+/* ---------- Règlement : chapitres, règles, barème, publication, import ---------- */
+
+const rulesEnv = levelsEnv;
+const getRules = async (env, token) => (await call(env, "/api/rules", { token })).json();
+const getPublic = async (env, origin = SITE) => { const r = await call(env, "/api/public/rules", { origin }); return { r, data: await r.json() }; };
+const SAMPLE = [
+  { title: "Règlement général", intro: "Intro 1.\n* un\n* deux", numbered: true, rules: [{ title: "Respect", body: "Soyez respectueux.\n* point A\n* point B" }, { title: "Pseudo", body: "Un pseudo correct.", important: true }] },
+  { title: "Scènes", intro: "", numbered: true, rules: [{ title: "Consentement", body: "« Je te frappe. »" }] },
+];
+/** Importe un règlement d'exemple comme le fait le panel : reset, un chapitre à la fois, puis « done ». */
+async function importRules(env, token, chapters = SAMPLE) {
+  assert.equal((await send(env, "/api/rules/import", token, "POST", { mode: "reset" })).status, 200);
+  for (const c of chapters) assert.equal((await send(env, "/api/rules/import", token, "POST", { mode: "chapter", chapter: { title: c.title, intro: c.intro, numbered: c.numbered }, rules: c.rules })).status, 201);
+  assert.equal((await send(env, "/api/rules/import", token, "POST", { mode: "done" })).status, 200);
+}
+const ruleNames = (data, i) => data.chapters[i].rules.map((r) => r.title);
+
+test("règlement : la migration est sans commentaire et donne la même structure qu'une installation neuve", () => {
+  const migration = readFileSync(new URL("./migration-reglement.sql", import.meta.url), "utf8");
+  assert.ok(!migration.includes("--"), "un commentaire « -- » masquerait la requête dans la console D1");
+  const old = new DatabaseSync(":memory:");
+  old.exec("CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL)");
+  old.exec(migration.replace(/\r?\n/g, " "));
+  const fresh = new DatabaseSync(":memory:");
+  fresh.exec(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
+  for (const t of ["rule_chapters", "rules", "rule_levels", "rules_meta"]) {
+    const cols = (d) => d.prepare(`PRAGMA table_info(${t})`).all().map((c) => [c.name, c.type, c.notnull, c.dflt_value]);
+    assert.deepEqual(cols(old), cols(fresh), t);
+  }
+});
+
+test("règlement : il faut être connecté, et être manager ou fondateur pour le gérer", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  assert.equal((await call(env, "/api/rules")).status, 401);
+  for (const lvl of ["support", "mod", "admin"]) {
+    for (const [path, method, body] of [["/api/rules", "GET"], ["/api/rules", "POST", { chapter_id: 1, title: "x" }], ["/api/rule-chapters", "POST", { title: "x" }], ["/api/rules/order", "PUT", { chapter_id: 1, ids: [] }], ["/api/rule-chapters/order", "PUT", { ids: [] }], ["/api/rules-bareme", "PUT", { levels: {} }], ["/api/rules/1", "PUT", { title: "x" }], ["/api/rules/1", "DELETE"], ["/api/rule-chapters/1", "DELETE"]]) {
+      assert.equal((await send(env, path, t[lvl], method, body)).status, 403, `${lvl} ${method} ${path}`);
+    }
+  }
+  assert.equal((await call(env, "/api/rules", { token: t.manager })).status, 200);
+  assert.equal((await call(env, "/api/rules", { token: t.founder })).status, 200);
+  // l'import (remplace tout) est réservé au fondateur
+  assert.equal((await send(env, "/api/rules/import", t.manager, "POST", { mode: "reset" })).status, 403);
+  assert.equal((await send(env, "/api/rules/import", t.admin, "POST", { mode: "reset" })).status, 403);
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "reset" })).status, 200);
+});
+
+test("règlement : tant que rien n'est importé, le site reçoit « non initialisé » ; une base sans les tables ne casse rien", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  assert.deepEqual((await getPublic(env)).data, { initialized: false });
+  // import commencé mais pas terminé : rien de public (le site garde la version d'origine)
+  await send(env, "/api/rules/import", t.founder, "POST", { mode: "reset" });
+  await send(env, "/api/rules/import", t.founder, "POST", { mode: "chapter", chapter: { title: "A" }, rules: [{ title: "r", body: "b" }] });
+  assert.deepEqual((await getPublic(env)).data, { initialized: false });
+  assert.equal((await getRules(env, t.manager)).initialized, false);
+  // anciennes bases : tables absentes
+  const old = rulesEnv();
+  old.DB.raw.exec("DROP TABLE rules; DROP TABLE rule_chapters; DROP TABLE rule_levels; DROP TABLE rules_meta;");
+  const tk = await tokens(old);
+  assert.deepEqual((await getPublic(old)).data, { initialized: false });
+  const staff = await getRules(old, tk.manager);
+  assert.equal(staff.missing, true); assert.equal(staff.initialized, false);
+});
+
+test("règlement : l'import par morceaux fonctionne, refuse les doublons et se confirme pour tout remplacer", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  const data = await getRules(env, t.manager);
+  assert.equal(data.initialized, true);
+  assert.deepEqual(data.chapters.map((c) => c.title), ["Règlement général", "Scènes"]);
+  assert.deepEqual(ruleNames(data, 0), ["Respect", "Pseudo"]);
+  assert.equal(data.chapters[0].rules[1].important, true);
+  assert.equal(data.chapters[0].rules[0].body, "Soyez respectueux.\n* point A\n* point B");
+  assert.equal(data.chapters[0].intro, "Intro 1.\n* un\n* deux");
+  // un chapitre en plus après « done » : refusé
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "chapter", chapter: { title: "Z" }, rules: [] })).status, 409);
+  // tout remplacer exige une confirmation
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "reset" })).status, 409);
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "reset", confirm: true })).status, 200);
+  assert.equal((await getRules(env, t.manager)).chapters.length, 0);
+  assert.equal((await getRules(env, t.manager)).initialized, false);
+  // entrées invalides
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "chapter", chapter: { title: "" }, rules: [] })).status, 400);
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "chapter", chapter: { title: "A" }, rules: [{ title: "" }] })).status, 400);
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "chapter", chapter: { title: "A" }, rules: "non" })).status, 400);
+  assert.equal((await send(env, "/api/rules/import", t.founder, "POST", { mode: "autre" })).status, 400);
+  assert.equal((await getRules(env, t.manager)).chapters.length, 0);   // rien n'a été à moitié écrit
+});
+
+test("règlement : la lecture publique ne montre que le publié, sans identifiant ni auteur, et se met en cache brièvement", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  const staff = await getRules(env, t.manager);
+  const [respect, pseudo] = staff.chapters[0].rules;
+  await send(env, `/api/rules/${pseudo.id}`, t.manager, "PUT", { published: false });
+  const out = await getPublic(env);
+  assert.equal(out.r.status, 200);
+  assert.equal(out.r.headers.get("access-control-allow-origin"), "*");
+  assert.match(out.r.headers.get("cache-control"), /public, max-age=\d+/);
+  assert.deepEqual(out.data.chapters.map((c) => ({ title: c.title, rules: c.rules.map((r) => r.title) })), [{ title: "Règlement général", rules: ["Respect"] }, { title: "Scènes", rules: ["Consentement"] }]);
+  const raw = JSON.stringify(out.data);
+  assert.ok(!/"id"|updated_by|published|chapter_id|position/.test(raw), "aucun champ interne dans la réponse publique : " + raw);
+  assert.equal(out.data.chapters[0].rules[0].important, false);
+  assert.ok(out.data.updated && !isNaN(Date.parse(out.data.updated)));
+  // chapitre dépublié : il disparaît avec ses règles
+  await send(env, `/api/rule-chapters/${staff.chapters[1].id}`, t.manager, "PUT", { published: false });
+  assert.deepEqual((await getPublic(env)).data.chapters.map((c) => c.title), ["Règlement général"]);
+  // et la lecture publique est possible sans connexion, depuis n'importe quel site
+  const anon = await call(env, "/api/public/rules", { origin: "https://autre-site.example" });
+  assert.equal(anon.status, 200);
+  const pre = await call(env, "/api/public/rules", { method: "OPTIONS", origin: "https://autre-site.example" });
+  assert.equal(pre.status, 204); assert.equal(pre.headers.get("access-control-allow-origin"), "*");
+  // mais on ne peut rien y écrire
+  assert.equal((await call(env, "/api/public/rules", { method: "POST", body: { a: 1 } })).status, 405);
+  void respect;
+});
+
+test("règlement : ajouter, modifier, supprimer une règle, avec contrôle des champs", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  let data = await getRules(env, t.manager);
+  const ch = data.chapters[0].id;
+  const add = await send(env, "/api/rules", t.manager, "POST", { chapter_id: ch, title: "  Nouvelle   règle ", body: "Ligne 1\n\n\n\nLigne 2", important: true });
+  assert.equal(add.status, 201);
+  const id = (await add.json()).id;
+  data = await getRules(env, t.manager);
+  const created = data.chapters[0].rules.at(-1);
+  assert.deepEqual([created.id, created.title, created.body, created.published, created.important, created.updated_by], [id, "Nouvelle règle", "Ligne 1\n\nLigne 2", true, true, "Jaguuar_"]);
+  assert.deepEqual(ruleNames(data, 0), ["Respect", "Pseudo", "Nouvelle règle"], "ajoutée en fin de chapitre");
+  // modification du texte seulement : le reste ne bouge pas
+  assert.equal((await send(env, `/api/rules/${id}`, t.manager, "PUT", { body: "Texte modifié." })).status, 200);
+  const edited = (await getRules(env, t.manager)).chapters[0].rules.at(-1);
+  assert.deepEqual([edited.title, edited.body, edited.important, edited.published], ["Nouvelle règle", "Texte modifié.", true, true]);
+  // validations
+  for (const [body, label] of [[{ chapter_id: ch, title: "" }, "titre vide"], [{ chapter_id: ch, title: "   " }, "titre blanc"], [{ title: "x" }, "sans chapitre"], [{ chapter_id: "abc", title: "x" }, "chapitre invalide"], [{ chapter_id: ch, title: "x", published: "oui" }, "booléen invalide"], [{ chapter_id: ch, title: "x", important: 2 }, "booléen invalide 2"]]) {
+    assert.equal((await send(env, "/api/rules", t.manager, "POST", body)).status, 400, label);
+  }
+  assert.equal((await send(env, "/api/rules", t.manager, "POST", { chapter_id: 99999, title: "x" })).status, 404);
+  assert.equal((await send(env, `/api/rules/${id}`, t.manager, "PUT", { title: "" })).status, 400);
+  assert.equal((await send(env, "/api/rules/99999", t.manager, "PUT", { title: "x" })).status, 404);
+  assert.equal((await send(env, "/api/rules/99999", t.manager, "DELETE")).status, 404);
+  const long = await send(env, "/api/rules", t.manager, "POST", { chapter_id: ch, title: "T".repeat(500), body: "x".repeat(9000) });
+  assert.equal(long.status, 201);
+  const l = (await getRules(env, t.manager)).chapters[0].rules.at(-1);
+  assert.equal(l.title.length, 160); assert.equal(l.body.length, 6000);
+  const huge = JSON.stringify({ chapter_id: ch, title: "x", body: "y".repeat(40000) });
+  const tooBig = await panel.fetch(new Request(`${W}/api/rules`, { method: "POST", headers: { authorization: `Bearer ${t.manager}`, origin: SITE, "content-type": "application/json", "content-length": String(huge.length) }, body: huge }), env);
+  assert.equal(tooBig.status, 413);
+  // suppression
+  assert.equal((await send(env, `/api/rules/${id}`, t.manager, "DELETE")).status, 200);
+  assert.ok(!ruleNames(await getRules(env, t.manager), 0).includes("Nouvelle règle"));
+});
+
+test("règlement : publier, dépublier et mettre en avant sans renvoyer le texte (modification partielle)", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  const r = (await getRules(env, t.manager)).chapters[0].rules[0];
+  assert.equal((await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { published: false })).status, 200);
+  assert.equal((await getPublic(env)).data.chapters[0].rules.length, 1);
+  assert.equal((await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { published: true, important: true })).status, 200);
+  const after = (await getPublic(env)).data.chapters[0].rules[0];
+  assert.deepEqual([after.title, after.important, after.body], ["Respect", true, "Soyez respectueux.\n* point A\n* point B"]);
+  const actions = env.DB.raw.prepare("SELECT action FROM audit WHERE action LIKE 'règlement : règle %' ORDER BY id").all().map((a) => a.action);
+  assert.deepEqual(actions, ["règlement : règle dépubliée", "règlement : règle publiée"]);
+  await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { important: false });
+  assert.equal(env.DB.raw.prepare("SELECT action FROM audit WHERE action LIKE 'règlement : règle %' ORDER BY id DESC LIMIT 1").get().action, "règlement : règle retirée des règles importantes");
+});
+
+test("règlement : déplacer vers un autre chapitre et réordonner règles et chapitres", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  let data = await getRules(env, t.manager);
+  const [c1, c2] = data.chapters, [respect, pseudo] = c1.rules, [conso] = c2.rules;
+  // réordonner dans le chapitre 1
+  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c1.id, ids: [pseudo.id, respect.id] })).status, 200);
+  assert.deepEqual(ruleNames(await getRules(env, t.manager), 0), ["Pseudo", "Respect"]);
+  // déplacer « Pseudo » dans le chapitre 2, entre les deux (liste complète du chapitre d'arrivée)
+  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [conso.id, pseudo.id] })).status, 200);
+  data = await getRules(env, t.manager);
+  assert.deepEqual(ruleNames(data, 0), ["Respect"]); assert.deepEqual(ruleNames(data, 1), ["Consentement", "Pseudo"]);
+  assert.equal(data.chapters[1].rules[1].chapter_id, c2.id);
+  // une liste incomplète (page pas à jour) est refusée, rien ne change
+  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [pseudo.id] })).status, 409);
+  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [conso.id, pseudo.id, 99999] })).status, 409);
+  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [conso.id, conso.id] })).status, 400);
+  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: 99999, ids: [] })).status, 404);
+  assert.deepEqual(ruleNames(await getRules(env, t.manager), 1), ["Consentement", "Pseudo"]);
+  // déplacement par modification (menu « Chapitre » de l'éditeur) : en fin de chapitre
+  assert.equal((await send(env, `/api/rules/${respect.id}`, t.manager, "PUT", { chapter_id: c2.id })).status, 200);
+  data = await getRules(env, t.manager);
+  assert.deepEqual(ruleNames(data, 0), []); assert.deepEqual(ruleNames(data, 1), ["Consentement", "Pseudo", "Respect"]);
+  assert.equal((await send(env, `/api/rules/${respect.id}`, t.manager, "PUT", { chapter_id: 99999 })).status, 404);
+  // chapitres
+  assert.equal((await send(env, "/api/rule-chapters/order", t.manager, "PUT", { ids: [c2.id, c1.id] })).status, 200);
+  assert.deepEqual((await getRules(env, t.manager)).chapters.map((c) => c.title), ["Scènes", "Règlement général"]);
+  assert.equal((await send(env, "/api/rule-chapters/order", t.manager, "PUT", { ids: [c2.id] })).status, 409);
+  assert.equal((await send(env, "/api/rule-chapters/order", t.manager, "PUT", { ids: [c2.id, c2.id] })).status, 409);
+  assert.deepEqual((await getPublic(env)).data.chapters.map((c) => c.title), ["Scènes", "Règlement général"]);
+});
+
+test("règlement : créer, modifier et supprimer un chapitre (un chapitre non vide ne se supprime pas)", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  const add = await send(env, "/api/rule-chapters", t.manager, "POST", { title: "  Charte Whitelist ", intro: "Bienvenue", numbered: false });
+  assert.equal(add.status, 201);
+  const id = (await add.json()).id;
+  let data = await getRules(env, t.manager);
+  const c = data.chapters.at(-1);
+  assert.deepEqual([c.id, c.title, c.intro, c.numbered, c.published, c.rules.length], [id, "Charte Whitelist", "Bienvenue", false, true, 0]);
+  assert.equal((await send(env, "/api/rule-chapters", t.manager, "POST", { title: "" })).status, 400);
+  assert.equal((await send(env, "/api/rule-chapters", t.manager, "POST", { title: "x", numbered: "non" })).status, 400);
+  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.manager, "PUT", { title: "Charte" })).status, 200);
+  data = await getRules(env, t.manager);
+  assert.deepEqual([data.chapters.at(-1).title, data.chapters.at(-1).intro], ["Charte", "Bienvenue"], "le reste est conservé");
+  assert.equal((await send(env, `/api/rule-chapters/${data.chapters[0].id}`, t.manager, "DELETE")).status, 409, "chapitre non vide");
+  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.manager, "DELETE")).status, 200);
+  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.manager, "DELETE")).status, 404);
+  assert.equal((await send(env, "/api/rule-chapters/99999", t.manager, "PUT", { title: "x" })).status, 404);
+});
+
+test("règlement : la date de mise à jour ne bouge que pour un changement visible sur le site", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  const first = (await getPublic(env)).data.updated;
+  env.DB.raw.prepare("UPDATE rules_meta SET v = '2020-01-01T00:00:00.000Z' WHERE k = 'updated_at'").run();
+  const draft = (await send(env, "/api/rules", t.manager, "POST", { chapter_id: (await getRules(env, t.manager)).chapters[0].id, title: "Brouillon", published: false }));
+  const draftId = (await draft.json()).id;
+  await send(env, `/api/rules/${draftId}`, t.manager, "PUT", { body: "encore brouillon" });
+  await send(env, `/api/rules/${draftId}`, t.manager, "DELETE");
+  assert.equal((await getPublic(env)).data.updated, "2020-01-01T00:00:00.000Z", "brouillons : date inchangée");
+  const r = (await getRules(env, t.manager)).chapters[0].rules[0];
+  await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { body: "Visible." });
+  assert.ok((await getPublic(env)).data.updated > first.slice(0, 4), "texte publié modifié : date mise à jour");
+  assert.notEqual((await getPublic(env)).data.updated, "2020-01-01T00:00:00.000Z");
+});
+
+test("règlement : barème indicatif à quatre niveaux, séparé des règles", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  let b = (await getRules(env, t.manager)).bareme;
+  assert.deepEqual(b.levels.map((l) => [l.key, l.label, l.body]), [["mineure", "Mineure", ""], ["moderee", "Modérée", ""], ["grave", "Grave", ""], ["critique", "Critique", ""]]);
+  assert.equal(b.intro, "Le barème reste indicatif et la décision finale dépend toujours du contexte.");
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { intro: "Indicatif.", levels: { grave: "Cas **sérieux**.\n* exemple" } })).status, 200);
+  b = (await getPublic(env)).data.bareme;
+  assert.equal(b.intro, "Indicatif.");
+  assert.equal(b.levels.find((l) => l.key === "grave").body, "Cas **sérieux**.\n* exemple");
+  assert.equal(b.levels.find((l) => l.key === "mineure").body, "", "un niveau non envoyé reste tel quel");
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { intro: "   " })).status, 200);
+  assert.equal((await getPublic(env)).data.bareme.intro, "Le barème reste indicatif et la décision finale dépend toujours du contexte.", "intro vide : texte par défaut");
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { levels: { extreme: "x" } })).status, 400, "niveaux fixes");
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { levels: [] })).status, 200, "liste ignorée");
+  // aucune règle n'est reliée à un niveau de sanction
+  assert.ok(!JSON.stringify((await getPublic(env)).data.chapters).match(/mineure|grave|critique/i));
+});
+
+test("règlement : le texte saisi reste du texte (rien n'est interprété) et chaque changement est journalisé", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  const ch = (await getRules(env, t.manager)).chapters[0].id;
+  const evil = `<img src=x onerror=alert(1)><script>alert(2)</script> ' OR 1=1 --`;
+  const id = (await (await send(env, "/api/rules", t.manager, "POST", { chapter_id: ch, title: evil, body: evil })).json()).id;
+  const back = (await getPublic(env)).data.chapters[0].rules.at(-1);
+  assert.equal(back.title, evil); assert.equal(back.body, evil);
+  assert.match((await call(env, "/api/public/rules")).headers.get("content-type"), /^application\/json/);
+  await send(env, `/api/rules/${id}`, t.manager, "DELETE");
+  const log = env.DB.raw.prepare("SELECT action, staff_name FROM audit WHERE action LIKE 'règlement%' ORDER BY id").all().map((a) => a.action);
+  assert.ok(log.includes("règlement : règle ajoutée") && log.includes("règlement : règle supprimée") && log.includes("règlement : import terminé"), log.join(" | "));
 });

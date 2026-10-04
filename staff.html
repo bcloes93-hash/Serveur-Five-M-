@@ -91,6 +91,7 @@
                 <button class="tabs__tab" type="button" role="tab" id="stab-sanctions" aria-controls="view-sanctions" aria-selected="false" tabindex="-1" data-view="sanctions">Sanctions</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-commands" aria-controls="view-commands" aria-selected="false" tabindex="-1" data-view="commands">Commandes</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-org" aria-controls="view-org" aria-selected="false" tabindex="-1" data-view="org">Organigramme</button>
+                <button class="tabs__tab" type="button" role="tab" id="stab-rules" aria-controls="view-rules" aria-selected="false" tabindex="-1" data-view="rules" data-manager hidden>Règlement</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-audit" aria-controls="view-audit" aria-selected="false" tabindex="-1" data-view="audit" data-admin hidden>Activité</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-server" aria-selected="false" tabindex="-1" disabled>Serveur <small>(bientôt)</small></button>
               </div>
@@ -117,6 +118,11 @@
                     <h3>Organigramme</h3>
                     <p>La hiérarchie de l'équipe staff.</p>
                     <button class="btn btn--primary btn--small" type="button" data-go="org">Ouvrir</button>
+                  </article>
+                  <article class="card" data-manager hidden>
+                    <h3>Règlement</h3>
+                    <p>Les chapitres et les règles publiés sur le site : texte, ordre, publication, barème indicatif.</p>
+                    <button class="btn btn--primary btn--small" type="button" data-go="rules">Ouvrir</button>
                   </article>
                   <article class="card card--soon">
                     <h3>Candidatures</h3>
@@ -394,6 +400,160 @@
                 </div>
               </section>
 
+              <!-- Règlement (manager et fondateur) -->
+              <section id="view-rules" role="tabpanel" aria-labelledby="stab-rules" hidden>
+                <div class="seg rl__sub" role="group" aria-label="Section Règlement">
+                  <button class="seg__btn" type="button" data-rsub="rules" aria-pressed="true">Chapitres et règles</button>
+                  <button class="seg__btn" type="button" data-rsub="bareme" aria-pressed="false">Barème indicatif</button>
+                </div>
+
+                <div id="rsub-rules">
+                  <div class="panelbox">
+                    <h2 class="tabpanel__title">Règlement du serveur</h2>
+                    <p class="tabpanel__lead">Ce que vous modifiez ici est publié sur la page Règlement du site (au plus une minute après l'enregistrement). Glissez une règle ou un chapitre pour changer l'ordre ; glissez une règle sur un chapitre pour la déplacer.</p>
+                    <p class="org__warn" id="rl-missing" role="alert" hidden><strong>La base du règlement n'est pas encore créée.</strong> Dans Cloudflare, ouvrez <em>D1</em> → votre base → <em>Console</em>, collez le contenu du fichier <code>panel/migration-reglement.sql</code>, exécutez-le, puis rechargez cette page.</p>
+                    <div class="rl__import" id="rl-import" hidden>
+                      <p><strong>Le règlement n'est pas encore géré depuis le panel.</strong> Le site affiche pour l'instant la version d'origine. Importez-la ici pour pouvoir la modifier : les textes sont repris tels quels, rien n'est réécrit.</p>
+                      <button class="btn btn--primary" type="button" id="rl-import-btn">Importer le règlement d'origine</button>
+                      <p class="form__note" id="rl-import-note" hidden>Seul le fondateur peut lancer cet import.</p>
+                    </div>
+                    <div class="rl__bar" id="rl-bar" hidden>
+                      <a class="btn btn--ghost btn--small" href="reglement.html" target="_blank" rel="noopener">Voir la page publique</a>
+                      <span class="rl__updated" id="rl-updated"></span>
+                    </div>
+                    <p class="form__status rl__status" id="rl-status" role="status" aria-live="polite"></p>
+                    <div class="rl" id="rl-main" hidden>
+                      <aside class="rl__col rl__col--chapters" aria-label="Chapitres">
+                        <div class="rl__colhead">
+                          <h3 class="rl__h">Chapitres</h3>
+                          <button class="btn btn--ghost btn--small" type="button" id="rl-add-chapter">+ Chapitre</button>
+                        </div>
+                        <ol class="rl__list" id="rl-chapters"></ol>
+                      </aside>
+                      <div class="rl__col rl__col--rules">
+                        <div class="rl__colhead">
+                          <h3 class="rl__h" id="rl-chapter-title">Règles</h3>
+                          <div class="rl__chapacts" id="rl-chapter-acts"></div>
+                        </div>
+                        <div class="rl__rulebar">
+                          <div class="field rl__filter">
+                            <label class="sr-only" for="rl-filter">Filtrer les règles de ce chapitre</label>
+                            <input id="rl-filter" type="search" maxlength="60" placeholder="Filtrer les règles de ce chapitre" autocomplete="off">
+                          </div>
+                          <button class="btn btn--primary btn--small" type="button" id="rl-add-rule">+ Ajouter une règle</button>
+                        </div>
+                        <p class="staff__hint" id="rl-hint" aria-live="polite"></p>
+                        <ol class="rl__list rl__list--rules" id="rl-rules"></ol>
+                      </div>
+                    </div>
+                    <p class="form__note rl__danger" id="rl-reset-box" hidden>Zone sensible (fondateur) : <button class="btn btn--small btn--link btn--danger" type="button" id="rl-reset">Remplacer tout le règlement par la version d'origine</button> efface toutes les modifications faites dans le panel.</p>
+                  </div>
+                </div>
+
+                <div id="rsub-bareme" hidden>
+                  <div class="panelbox">
+                    <h2 class="tabpanel__title">Barème des sanctions (indicatif)</h2>
+                    <p class="tabpanel__lead">Section séparée des règles, affichée sur la page Règlement. Quatre niveaux, sans lien automatique avec une règle précise : la décision finale dépend toujours du contexte. Les textes sont facultatifs et se mettent en forme comme une règle.</p>
+                    <form class="form" id="rl-bareme-form" novalidate>
+                      <div class="form__body">
+                        <div class="field">
+                          <label for="rb-intro">Introduction</label>
+                          <textarea id="rb-intro" name="intro" rows="2" maxlength="800"></textarea>
+                        </div>
+                        <div class="field"><label for="rb-mineure">Mineure</label><textarea id="rb-mineure" name="mineure" rows="4" maxlength="2500"></textarea></div>
+                        <div class="field"><label for="rb-moderee">Modérée</label><textarea id="rb-moderee" name="moderee" rows="4" maxlength="2500"></textarea></div>
+                        <div class="field"><label for="rb-grave">Grave</label><textarea id="rb-grave" name="grave" rows="4" maxlength="2500"></textarea></div>
+                        <div class="field"><label for="rb-critique">Critique</label><textarea id="rb-critique" name="critique" rows="4" maxlength="2500"></textarea></div>
+                      </div>
+                      <div class="form__actions">
+                        <button class="btn btn--primary" type="submit" id="rb-submit">Enregistrer le barème</button>
+                        <a class="btn btn--ghost" href="reglement.html#bareme" target="_blank" rel="noopener">Voir sur le site</a>
+                      </div>
+                      <p class="form__status" id="rb-status" role="status" aria-live="polite"></p>
+                    </form>
+                  </div>
+                </div>
+
+                <!-- Éditeur d'une règle -->
+                <dialog class="rl__dialog" id="rl-rule-dialog" aria-labelledby="rl-rule-title">
+                  <form class="form" id="rl-rule-form" novalidate>
+                    <h2 class="tabpanel__title" id="rl-rule-title">Modifier la règle</h2>
+                    <div class="form__body">
+                      <div class="form__row">
+                        <div class="field">
+                          <label for="rl-r-title">Titre de la règle</label>
+                          <input id="rl-r-title" name="title" type="text" required maxlength="160" autocomplete="off">
+                        </div>
+                        <div class="field">
+                          <label for="rl-r-chapter">Chapitre</label>
+                          <select id="rl-r-chapter" name="chapter_id" required></select>
+                        </div>
+                      </div>
+                      <div class="rl__split">
+                        <div class="field">
+                          <label for="rl-r-body">Texte de la règle</label>
+                          <div class="rl__tb" role="toolbar" aria-label="Mise en forme du texte" id="rl-r-tb"></div>
+                          <textarea id="rl-r-body" name="body" rows="12" maxlength="6000"></textarea>
+                          <details class="rl__help">
+                            <summary>Comment mettre en forme ?</summary>
+                            <ul>
+                              <li>Une ligne = un paragraphe.</li>
+                              <li><code>* texte</code> : une puce · <code>1. texte</code> : une liste numérotée.</li>
+                              <li><code>**texte**</code> : gras · une ligne entière en gras est mise en avant.</li>
+                              <li><code>« phrase »</code> sur sa ligne : citation.</li>
+                              <li><code>Interdit</code>, <code>Autorisé</code>, <code>Exemple</code> seuls sur une ligne : intertitres colorés.</li>
+                              <li><code>### Titre</code> : encadré (tout ce qui suit y est inclus).</li>
+                              <li><code>a → b → c</code> : enchaînement.</li>
+                              <li>« Chapitre 4 » dans un texte devient un lien vers ce chapitre.</li>
+                            </ul>
+                          </details>
+                        </div>
+                        <div class="field">
+                          <span class="rl__prevlabel">Aperçu, tel qu'il s'affichera sur le site</span>
+                          <div class="rl__preview" aria-live="polite"><div class="rule__body" id="rl-r-preview"></div></div>
+                        </div>
+                      </div>
+                      <div class="rl__checks">
+                        <label class="check"><input type="checkbox" name="published"> <span>Publiée sur le site (décochez pour la garder en brouillon)</span></label>
+                        <label class="check"><input type="checkbox" name="important"> <span>Règle importante : mise en avant sur le site</span></label>
+                      </div>
+                    </div>
+                    <div class="form__actions">
+                      <button class="btn btn--primary" type="submit" id="rl-r-submit">Enregistrer</button>
+                      <button class="btn btn--ghost" type="button" id="rl-r-cancel">Annuler</button>
+                    </div>
+                    <p class="form__status" id="rl-r-status" role="status" aria-live="polite"></p>
+                  </form>
+                </dialog>
+
+                <!-- Éditeur d'un chapitre -->
+                <dialog class="rl__dialog rl__dialog--narrow" id="rl-chapter-dialog" aria-labelledby="rl-chapter-dtitle">
+                  <form class="form" id="rl-chapter-form" novalidate>
+                    <h2 class="tabpanel__title" id="rl-chapter-dtitle">Modifier le chapitre</h2>
+                    <div class="form__body">
+                      <div class="field">
+                        <label for="rl-c-title">Titre du chapitre</label>
+                        <input id="rl-c-title" name="title" type="text" required maxlength="100" autocomplete="off">
+                      </div>
+                      <div class="field">
+                        <label for="rl-c-intro">Introduction (facultative)</label>
+                        <textarea id="rl-c-intro" name="intro" rows="6" maxlength="3000"></textarea>
+                        <p class="field__hint">Même mise en forme que les règles : une ligne = un paragraphe, <code>* </code> pour une puce, <code>**gras**</code>.</p>
+                      </div>
+                      <div class="rl__checks">
+                        <label class="check"><input type="checkbox" name="numbered"> <span>Numéroter ce chapitre (« Chapitre 3 », règles 3.1, 3.2…). Décochez pour un texte comme la Charte Whitelist.</span></label>
+                        <label class="check"><input type="checkbox" name="published"> <span>Publié sur le site</span></label>
+                      </div>
+                    </div>
+                    <div class="form__actions">
+                      <button class="btn btn--primary" type="submit" id="rl-c-submit">Enregistrer</button>
+                      <button class="btn btn--ghost" type="button" id="rl-c-cancel">Annuler</button>
+                    </div>
+                    <p class="form__status" id="rl-c-status" role="status" aria-live="polite"></p>
+                  </form>
+                </dialog>
+              </section>
+
               <!-- Activité (administration) -->
               <section class="panelbox" id="view-audit" role="tabpanel" aria-labelledby="stab-audit" hidden>
                 <h2 class="tabpanel__title">Journal d'activité</h2>
@@ -433,6 +593,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/rules-render.js"></script>
   <script src="js/staff.js"></script>
 </body>
 </html>

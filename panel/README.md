@@ -33,6 +33,28 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   appliquer selon les récidives, par exemple avertissement, expulsion, ban 3 jours, ban définitif. Il se lit d'un coup
   d'œil, se recherche, et un bouton « Noter dans le journal » reprend l'infraction dans le journal. Visible par tout le
   staff ; l'administration l'édite depuis le panel.
+- **Règlement** (onglet *Règlement*, **manager et fondateur**) : les chapitres et les règles de la page publique
+  [Règlement](../reglement.html) se gèrent ici, sans toucher au code. Le site lit la version publiée par une route
+  publique en lecture seule (`/api/public/rules`, qui ne renvoie que ce qui est publié, sans identifiant ni nom d'auteur).
+  - **Modifier le texte** d'une règle (éditeur avec barre de mise en forme et **aperçu en direct**), **ajouter**,
+    **supprimer**, **publier / dépublier** (un brouillon reste dans le panel, invisible sur le site), **mettre en avant**
+    (règle « importante » : pastille et mise en valeur sur le site, filtre « ★ Règles importantes »).
+  - **Réorganiser** : glisser une règle pour changer son ordre, la **glisser sur un chapitre** pour la déplacer dans ce
+    chapitre ; glisser un chapitre pour le replacer. Sans souris : boutons ↑ ↓ et menu « Déplacer vers… ». Chapitres :
+    créer, modifier, publier / dépublier, supprimer (seulement s'il est vide).
+  - **Les numéros sont automatiques** : « 5.12 » = 12ᵉ règle publiée du 5ᵉ chapitre publié, selon l'ordre choisi. Déplacer
+    ou dépublier une règle renumérote celles qui suivent ; un chapitre « non numéroté » (ex. *Charte Whitelist*) n'a ni
+    « Chapitre N » ni numéros de règles. Les adresses directes (`reglement.html#r5-12`) suivent la numérotation.
+    Un renvoi écrit dans un texte (« Chapitre 4 ») devient un lien vers ce chapitre, mais **n'est pas réécrit
+    automatiquement** si l'on change l'ordre des chapitres.
+  - **Mise en forme du texte** (une ligne = un paragraphe) : `* texte` puce, `1. texte` liste numérotée, `**gras**`,
+    `« phrase »` citation, `Interdit` / `Autorisé` / `Exemple` seuls sur une ligne = intertitres colorés, `### Titre` =
+    encadré, `a → b → c` = enchaînement. Rien n'est jamais interprété comme du HTML.
+  - **Barème des sanctions (indicatif)** : onglet *Règlement → Barème indicatif*. Quatre niveaux fixes (Mineure, Modérée,
+    Grave, Critique), une introduction et un texte facultatif par niveau. C'est une section **séparée** : aucune règle n'est
+    reliée à un niveau ni à une sanction. Il est distinct du barème privé du staff (*Sanctions → Barème*).
+  - La date « Dernière mise à jour » du site ne change que lorsqu'un changement touche du contenu **publié**.
+  - Chaque action est inscrite dans le journal d'activité.
 - **Journal de sanctions** (onglet *Sanctions → Journal*) : avertissement, expulsion, bannissement temporaire ou définitif, note ; recherche par joueur,
   identifiant ou motif ; chaque ligne garde l'auteur et la date.
 - **Journal d'activité** : connexions, sanctions ajoutées et supprimées. Une suppression est « douce » : la ligne reste
@@ -116,6 +138,10 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 | `commands` | Commandes Discord / FiveM (`platform`, catégorie, commande, description, exemple, `min_level` = niveau minimal pour la voir) |
 | `org` | Organigramme : une ligne par personne **et par case** (nom, titre affiché, `kind` = la case, ex. `adm_legal`, ou `other` = à placer ; `grp` et `tier` sont déduits de la case par le serveur ; ordre ; `discord_id` et `avatar` = compte et photo Discord, renseignés à la connexion) |
 | `penalties` | Barème : catégorie, infraction (`name`), paliers au format JSON (`steps`), précisions (`notes`) |
+| `rule_chapters` | Règlement : chapitres (titre, introduction, `numbered` = numéroté ou non, ordre, `published`) |
+| `rules` | Règlement : règles (chapitre, ordre, titre, texte, `published`, `important`, dernière modification et auteur) |
+| `rule_levels` | Barème indicatif public : le texte de chacun des 4 niveaux |
+| `rules_meta` | Réglages du règlement : `initialized` (import fait), date de dernière mise à jour, introduction du barème |
 
 ## Étape 4 – Relier la base et renseigner les réglages
 Dans le Worker → **Settings** :
@@ -187,6 +213,20 @@ dans « À placer » : glissez-les dans leurs pôles.
 
 L'ordre n'est pas critique : tant que l'étape 1 n'est pas faite, le panel fonctionne comme avant (initiales au lieu de
 photos, pas d'inscription automatique), sans erreur.
+
+### Mise à jour : règlement géré depuis le panel
+1. Dans **D1 → votre base → Console**, collez [`migration-reglement.sql`](./migration-reglement.sql) (quatre tables
+   `CREATE TABLE IF NOT EXISTS`, sans risque si vous le refaites) et **Execute**.
+2. Collez le nouveau [`worker.mjs`](./worker.mjs) dans le relais du panel (*Edit code* → **Deploy**).
+3. Publiez le site (fichiers `reglement.html`, `staff.html`, `js/`, `css/` et **`data/reglement.json`**).
+4. Connectez-vous au panel avec le compte **fondateur** → onglet *Règlement* → **Importer le règlement d'origine**.
+   Les textes sont repris tels quels, chapitre par chapitre. Tant que l'import n'est pas terminé, le site affiche la
+   version d'origine (`data/reglement.json`) : rien ne change pour les joueurs.
+
+Ensuite, le site lit le règlement depuis le panel. Si le panel est injoignable, le site se rabat sur
+`data/reglement.json`, qui est la **version d'origine** (elle n'est pas mise à jour par vos modifications) : c'est un
+filet de sécurité, pas la version courante. Le niveau minimal pour gérer le règlement est `RULES_LEVEL` en tête de
+`worker.mjs` (`manager` par défaut) ; seul le fondateur peut lancer l'import ou tout remplacer par la version d'origine.
 
 ## À savoir
 - **Données privées** : les commandes et l'organigramme du panel ne sont lisibles qu'après connexion avec un rôle staff.
