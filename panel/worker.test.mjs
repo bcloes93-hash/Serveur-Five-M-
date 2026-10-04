@@ -192,6 +192,7 @@ test("CORS : seul le site autorisé peut appeler l'API depuis un navigateur", as
   assert.equal(pre.status, 204);
   assert.match(pre.headers.get("access-control-allow-headers"), /authorization/);
   assert.match(pre.headers.get("access-control-allow-methods"), /DELETE/);
+  assert.match(pre.headers.get("access-control-allow-methods"), /\bPUT\b/, "PUT autorisé : modifier ou déplacer une ligne en dépend");
 });
 
 /* ---------- Journal de sanctions ---------- */
@@ -320,6 +321,21 @@ test("base non initialisée (schema.sql oublié) : retour clair « error=server 
   const { location, token } = await connect(makeEnv({ DB: empty }));
   assert.equal(location, `${PANEL_URL}#error=server`);
   assert.equal(token, null);
+});
+
+test("CORS : toutes les méthodes HTTP utilisées par la page du panel sont autorisées par le relais", async () => {
+  const env = makeEnv();
+  const front = readFileSync(new URL("../js/staff.js", import.meta.url), "utf8");
+  const used = new Set([...front.matchAll(/\bapi\(\s*"(GET|POST|PUT|PATCH|DELETE)"/g)].map((m) => m[1]));
+  assert.ok(used.has("PUT") && used.has("DELETE") && used.has("POST") && used.has("GET"), "le panel utilise bien ces 4 méthodes : " + [...used]);
+  const pre = await panel.fetch(new Request(`${W}/api/org/1`, { method: "OPTIONS", headers: { origin: SITE, "access-control-request-method": "PUT" } }), env);
+  assert.equal(pre.status, 204);
+  const allowed = pre.headers.get("access-control-allow-methods").split(",").map((m) => m.trim());
+  for (const m of used) assert.ok(allowed.includes(m), `méthode ${m} refusée par le relais (CORS)`);
+  assert.match(pre.headers.get("access-control-allow-headers"), /content-type/);
+  // une origine inconnue n'obtient aucune autorisation
+  const evil = await panel.fetch(new Request(`${W}/api/org/1`, { method: "OPTIONS", headers: { origin: "https://pirate.example" } }), env);
+  assert.equal(evil.headers.get("access-control-allow-origin"), null);
 });
 
 /* ---------- Commandes et organigramme ---------- */

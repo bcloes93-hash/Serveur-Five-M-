@@ -312,7 +312,7 @@ async function api(request, env, url) {
   const allowed = String(env.ALLOWED_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean);
   const origin = request.headers.get("Origin") || "";
   const cors = allowed.includes(origin)
-    ? { "access-control-allow-origin": origin, "access-control-allow-methods": "GET, POST, DELETE, OPTIONS", "access-control-allow-headers": "authorization, content-type", vary: "Origin" }
+    ? { "access-control-allow-origin": origin, "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS", "access-control-allow-headers": "authorization, content-type", vary: "Origin" }
     : {};
 
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
