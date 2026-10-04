@@ -21,6 +21,23 @@
   // Lien « Espace staff » : visible seulement quand le panel est configuré.
   if (cfg.staffApi) $$("[data-staff-link]").forEach(function (a) { a.hidden = false; });
 
+  /* ---------- Règlement : tout déplier / replier, ouverture directe d'un article par son adresse (#r1-5) ---------- */
+  $$("[data-rules-tools]").forEach(function (tools) {
+    tools.hidden = false;   // sans JavaScript, les articles s'ouvrent un à un et ces boutons restent cachés
+    var chapter = tools.closest(".chapter");
+    var set = function (open) { $$("details.rule", chapter).forEach(function (d) { d.open = open; }); };
+    $("[data-rules-open]", tools).addEventListener("click", function () { set(true); });
+    $("[data-rules-close]", tools).addEventListener("click", function () { set(false); });
+  });
+  function openFromHash() {
+    var id = "";
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) { return; }
+    var target = id ? document.getElementById(id) : null;
+    if (target && target.matches("details.rule")) { target.open = true; target.scrollIntoView({ behavior: "instant", block: "start" }); }
+  }
+  window.addEventListener("hashchange", openFromHash);
+  openFromHash();
+
   /* ---------- Menu mobile ---------- */
   var toggle = $(".nav__toggle");
   var menu = $("#menu");

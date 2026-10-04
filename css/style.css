@@ -116,6 +116,12 @@ a:hover { color: #7be6ff; }
 .nav__toggle[aria-expanded="true"] .nav__burger::before { transform: translateY(6px) rotate(45deg); }
 .nav__toggle[aria-expanded="true"] .nav__burger::after { transform: translateY(-6px) rotate(-45deg); }
 
+@media (max-width: 360px) {   /* très petits écrans : le logo, le nom et le bouton de menu doivent tenir sur une ligne */
+  .nav__inner { gap: 8px; }
+  .nav__brand { gap: 8px; font-size: 1.3rem; }
+  .nav__brand img { width: 36px; height: 36px; }
+}
+
 @media (max-width: 1100px) {
   .nav__toggle { display: inline-flex; }
   .nav__menu {
@@ -290,7 +296,7 @@ a:hover { color: #7be6ff; }
 .page-head { padding: clamp(48px, 8vw, 88px) 0 8px; }
 .page-head .section__lead { margin-bottom: 0; }
 .rules { padding: 32px 0 clamp(64px, 9vw, 110px); }
-.rules__list { display: grid; gap: 14px; max-width: 860px; }
+.rules__list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; max-width: 860px; }
 .rule {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   transition: border-color .2s, background .2s;
@@ -300,16 +306,28 @@ a:hover { color: #7be6ff; }
   cursor: pointer; list-style: none; padding: 20px 24px;
   display: flex; align-items: center; gap: 16px; font-weight: 600; font-size: 1.15rem;
 }
+.rule summary { overflow-wrap: anywhere; }
 .rule summary::-webkit-details-marker { display: none; }
 .rule summary::after {
   content: "+"; margin-left: auto; font-size: 1.6rem; line-height: 1; color: var(--cyan);
   transition: transform .2s;
 }
 .rule[open] summary::after { transform: rotate(45deg); }
-.rule__num { font-family: var(--font-display); font-size: 1.9rem; letter-spacing: 0.04em; color: var(--pink); min-width: 2ch; }
+.rule__num { font-family: var(--font-display); font-size: 1.9rem; letter-spacing: 0.04em; color: var(--pink); min-width: 3.3ch; white-space: nowrap; }
 .rule__body { padding: 0 24px 22px 24px; color: var(--muted); }
+.rule__body > * { margin: 0; }
+.rule__body > * + * { margin-top: 12px; }
 .rule__body ul { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
 .rule__body strong { color: var(--text); }
+/* Chapitres du règlement : un titre, une introduction, puis les articles numérotés (1.1, 1.2…) */
+.chapter + .chapter { padding-top: 8px; }
+.chapter__head { max-width: 860px; margin-bottom: 22px; }
+.chapter__title { margin: 0.1em 0 14px; font-family: var(--font-display); font-weight: 400; font-size: clamp(2.1rem, 4.4vw, 3rem); letter-spacing: 0.04em; line-height: 1.1; }
+.chapter__intro { display: grid; gap: 8px; padding: 16px 20px; border-radius: 12px; border: 1px solid var(--border); border-left: 3px solid var(--cyan); background: var(--surface); color: var(--text); }
+.chapter__intro p { margin: 0; }
+.chapter__tools { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.chapter__tools[hidden] { display: none; }
+.rules--end { padding-top: 0; }
 .rules__note {
   max-width: 860px; margin-top: 28px; padding: 18px 22px; border-radius: var(--radius);
   border: 1px solid rgba(139, 92, 246, 0.45); background: rgba(139, 92, 246, 0.1); color: #d9d6f7;
