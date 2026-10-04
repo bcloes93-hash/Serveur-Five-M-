@@ -18,6 +18,9 @@
     });
   }
 
+  // Lien « Espace staff » : visible seulement quand le panel est configuré.
+  if (cfg.staffApi) $$("[data-staff-link]").forEach(function (a) { a.hidden = false; });
+
   /* ---------- Menu mobile ---------- */
   var toggle = $(".nav__toggle");
   var menu = $("#menu");

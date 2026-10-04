@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Espace staff – Santos Legacy RP</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Espace réservé aux membres du staff de Santos Legacy RP.">
+  <meta name="theme-color" content="#070716">
+  <!-- Protection supplémentaire : seuls nos scripts et notre relais Cloudflare sont autorisés. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-WZRJfWvsnNCPcxzZwvyhovnZGqhZaC+8gPGPRbx6wTk='; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self' https://discord.com https://*.workers.dev; base-uri 'none'; object-src 'none'; form-action 'self'">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+  <a class="skip-link" href="#contenu">Aller au contenu</a>
+
+  <header class="nav" id="top">
+    <div class="nav__inner">
+      <a class="nav__brand" href="index.html" aria-label="Santos Legacy RP – accueil">
+        <img src="assets/logo.png" width="44" height="44" alt="">
+        <span>Santos <em>Legacy</em> RP</span>
+      </a>
+
+      <button class="nav__toggle" type="button" aria-expanded="false" aria-controls="menu">
+        <span class="sr-only">Menu</span>
+        <span class="nav__burger" aria-hidden="true"></span>
+      </button>
+
+      <nav class="nav__menu" id="menu" aria-label="Navigation principale">
+        <a href="index.html">Accueil</a>
+        <a href="index.html#serveur">Le serveur</a>
+        <a href="index.html#rejoindre">Rejoindre</a>
+        <a href="reglement.html">Règlement</a>
+        <a href="equipe.html">Équipe</a>
+        <a href="candidature.html">Candidature</a>
+        <a class="btn btn--small btn--discord" href="#" data-discord target="_blank" rel="noopener">Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenu">
+    <section class="page-head">
+      <div class="container">
+        <p class="eyebrow">Espace staff</p>
+        <h1 class="section__title">Panel staff</h1>
+        <p class="section__lead">Accès réservé aux membres du staff de Santos Legacy RP, avec leur compte Discord.</p>
+      </div>
+    </section>
+
+    <section class="staff" aria-label="Panel staff">
+      <div class="container">
+
+        <!-- Panel pas encore branché (staffApi vide dans js/config.js) -->
+        <div class="panelbox" id="staff-unconfigured" hidden>
+          <h2 class="tabpanel__title">Panel pas encore activé</h2>
+          <p class="tabpanel__lead">La connexion staff n'est pas encore configurée. Voir <code>panel/README.md</code> dans le dépôt GitHub.</p>
+        </div>
+
+        <!-- Connexion -->
+        <div class="panelbox" id="staff-login" hidden>
+          <h2 class="tabpanel__title">Connexion</h2>
+          <p class="tabpanel__lead">Connectez-vous avec Discord. Seuls les membres du serveur qui ont un rôle staff peuvent entrer.</p>
+          <p class="staff__error" id="staff-error" role="alert" hidden></p>
+          <div class="form__actions staff__loginaction">
+            <a class="btn btn--discord" id="staff-login-btn" href="#">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+              Se connecter avec Discord
+            </a>
+          </div>
+        </div>
+
+        <!-- Panel (affiché une fois connecté) -->
+        <div id="staff-app" hidden>
+          <div class="staff__bar">
+            <img class="staff__avatar" id="staff-avatar" width="48" height="48" alt="" hidden>
+            <div class="staff__who">
+              <strong id="staff-name"></strong>
+              <span class="staff__level" id="staff-level"></span>
+            </div>
+            <button class="btn btn--ghost btn--small" id="staff-logout" type="button">Se déconnecter</button>
+          </div>
+
+          <div class="tabs staff__tabs" role="tablist" aria-label="Sections du panel">
+            <button class="tabs__tab" type="button" role="tab" id="stab-home" aria-controls="view-home" aria-selected="true" data-view="home">Accueil</button>
+            <button class="tabs__tab" type="button" role="tab" id="stab-sanctions" aria-controls="view-sanctions" aria-selected="false" tabindex="-1" data-view="sanctions">Sanctions</button>
+            <button class="tabs__tab" type="button" role="tab" id="stab-audit" aria-controls="view-audit" aria-selected="false" tabindex="-1" data-view="audit" data-admin hidden>Activité</button>
+            <button class="tabs__tab" type="button" role="tab" id="stab-server" aria-selected="false" tabindex="-1" disabled>Serveur <small>(bientôt)</small></button>
+          </div>
+
+          <!-- Accueil -->
+          <section class="panelbox" id="view-home" role="tabpanel" aria-labelledby="stab-home">
+            <h2 class="tabpanel__title">Bienvenue</h2>
+            <p class="tabpanel__lead">Voici les outils à votre disposition. D'autres seront ajoutés au fil du temps.</p>
+            <div class="cards staff__cards">
+              <article class="card">
+                <h3>Journal de sanctions</h3>
+                <p>Enregistrez et retrouvez les avertissements, expulsions et bannissements.</p>
+                <button class="btn btn--primary btn--small" type="button" data-go="sanctions">Ouvrir</button>
+              </article>
+              <article class="card card--soon">
+                <h3>Candidatures</h3>
+                <p>Suivi des candidatures WL et Staff.</p>
+                <span class="badge badge--soon">Bientôt</span>
+              </article>
+              <article class="card card--soon">
+                <h3>Serveur FiveM</h3>
+                <p>Joueurs en ligne, expulsions et bannissements en direct.</p>
+                <span class="badge badge--soon">Bientôt</span>
+              </article>
+            </div>
+            <p class="form__note staff__note">Les informations de ce panel sont confidentielles et réservées au staff. Ne partagez jamais votre session.</p>
+          </section>
+
+          <!-- Sanctions -->
+          <section id="view-sanctions" role="tabpanel" aria-labelledby="stab-sanctions" hidden>
+            <div class="panelbox">
+              <h2 class="tabpanel__title">Nouvelle sanction</h2>
+              <form class="form" id="sanction-form" novalidate>
+                <div class="form__body">
+                  <div class="form__row form__row--even">
+                    <div class="field">
+                      <label for="s-player">Joueur <span class="req" aria-hidden="true">*</span></label>
+                      <input id="s-player" name="player" type="text" required maxlength="80" autocomplete="off">
+                    </div>
+                    <div class="field">
+                      <label for="s-ref">Identifiant (facultatif)</label>
+                      <input id="s-ref" name="ref" type="text" maxlength="80" autocomplete="off" placeholder="ID Discord, licence…">
+                    </div>
+                  </div>
+                  <div class="form__row form__row--even">
+                    <div class="field">
+                      <label for="s-type">Type <span class="req" aria-hidden="true">*</span></label>
+                      <select id="s-type" name="type" required>
+                        <option value="avertissement">Avertissement</option>
+                        <option value="expulsion">Expulsion</option>
+                        <option value="ban_temp">Bannissement temporaire</option>
+                        <option value="ban_def">Bannissement définitif</option>
+                        <option value="note">Note</option>
+                      </select>
+                    </div>
+                    <div class="field" id="s-duration-field" hidden>
+                      <label for="s-duration">Durée <span class="req" aria-hidden="true">*</span></label>
+                      <input id="s-duration" name="duration" type="text" maxlength="40" autocomplete="off" placeholder="ex. 7 jours">
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="s-reason">Motif <span class="req" aria-hidden="true">*</span></label>
+                    <textarea id="s-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                  </div>
+                  <div class="form__actions">
+                    <button class="btn btn--primary" type="submit">Enregistrer</button>
+                  </div>
+                  <p class="form__status" id="sanction-status" role="status" aria-live="polite"></p>
+                </div>
+              </form>
+            </div>
+
+            <div class="panelbox">
+              <div class="field staff__search">
+                <label for="s-search">Rechercher dans le journal</label>
+                <input id="s-search" type="search" maxlength="80" placeholder="Joueur, identifiant ou motif" autocomplete="off">
+              </div>
+              <p class="staff__hint" id="sanction-hint" aria-live="polite"></p>
+              <ul class="sanctions" id="sanction-list"></ul>
+            </div>
+          </section>
+
+          <!-- Activité (administration) -->
+          <section class="panelbox" id="view-audit" role="tabpanel" aria-labelledby="stab-audit" hidden>
+            <h2 class="tabpanel__title">Journal d'activité</h2>
+            <p class="tabpanel__lead">Les 100 dernières actions : connexions, sanctions ajoutées et supprimées.</p>
+            <ul class="audit" id="audit-list"></ul>
+          </section>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand">
+        <img src="assets/logo.png" width="56" height="56" alt="">
+        <div>
+          <strong>Santos Legacy RP</strong>
+          <span>Serveur RP FiveM francophone</span>
+        </div>
+      </div>
+      <nav class="footer__links" aria-label="Liens du pied de page">
+        <a href="index.html">Accueil</a>
+        <a href="reglement.html">Règlement</a>
+        <a href="equipe.html">Équipe</a>
+        <a href="candidature.html">Candidature</a>
+        <a href="#" data-discord target="_blank" rel="noopener">Discord</a>
+        <a href="staff.html" data-staff-link hidden>Espace staff</a>
+      </nav>
+    </div>
+    <p class="footer__legal container">
+      © <span data-year>2026</span> Santos Legacy RP. Ce serveur est indépendant et n'est affilié ni à Rockstar Games, ni à Take-Two Interactive, ni à Cfx.re.
+    </p>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/staff.js"></script>
+</body>
+</html>

@@ -1,0 +1,323 @@
+// Tests du panel staff : `node --test panel/worker.test.mjs` (Node 22 ou plus récent, aucune dépendance).
+// La base D1 est simulée avec une vraie base SQLite en mémoire (le schéma réel est exécuté).
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import panel from "./worker.mjs";
+
+const SITE = "https://bcloes93-hash.github.io";
+const PANEL_URL = `${SITE}/Serveur-Five-M-/staff.html`;
+const W = "https://staff.example.workers.dev";
+const GUILD = "222222222222222222";
+const ROLE_MOD = "333333333333333333";
+const ROLE_ADMIN = "444444444444444444";
+const ROLE_ADMIN2 = "555555555555555555";
+
+function makeD1() {
+  const db = new DatabaseSync(":memory:");
+  db.exec(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
+  const wrap = (stmt, args) => ({
+    async run() { const r = stmt.run(...args); return { success: true, meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; },
+    async all() { return { success: true, results: stmt.all(...args).map((r) => ({ ...r })) }; },
+    async first() { const r = stmt.get(...args); return r ? { ...r } : null; },
+  });
+  return { raw: db, prepare(sql) { const stmt = db.prepare(sql); return { ...wrap(stmt, []), bind: (...args) => wrap(stmt, args) }; } };
+}
+
+const makeEnv = (over = {}) => ({
+  DISCORD_CLIENT_ID: "111111111111111111", DISCORD_CLIENT_SECRET: "client-secret", DISCORD_GUILD_ID: GUILD,
+  ROLES_MOD: ROLE_MOD, ROLES_ADMIN: `${ROLE_ADMIN}, ${ROLE_ADMIN2}`,
+  SESSION_SECRET: "k".repeat(48), PANEL_URL, ALLOWED_ORIGIN: SITE, DB: makeD1(), ...over,
+});
+
+/** Faux Discord. `member`: objet du membre, ou null pour « n'est pas dans le serveur ». */
+function fakeDiscord({ member = { roles: [ROLE_MOD], nick: null }, tokenOk = true, userId = "999999999999999999" } = {}) {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    calls.push({ url: u, init });
+    if (u.endsWith("/oauth2/token")) return tokenOk ? Response.json({ access_token: "AT" }) : new Response("{}", { status: 400 });
+    if (u.endsWith("/users/@me")) return Response.json({ id: userId, username: "jaguuar", global_name: "Jaguuar_", avatar: "abc123" });
+    if (u.endsWith(`/users/@me/guilds/${GUILD}/member`)) return member ? Response.json(member) : new Response("{}", { status: 404 });
+    return new Response("?", { status: 500 });
+  };
+  return { calls, restore: () => { globalThis.fetch = original; } };
+}
+
+/** Parcours complet : /login puis /callback. Retourne l'adresse de redirection finale et le jeton éventuel. */
+async function connect(env, discordOpts = {}) {
+  const d = fakeDiscord(discordOpts);
+  try {
+    const r1 = await panel.fetch(new Request(`${W}/login`), env);
+    const state = new URL(r1.headers.get("location")).searchParams.get("state");
+    const nonce = /sl_oauth=([^;]+)/.exec(r1.headers.get("set-cookie"))[1];
+    const r2 = await panel.fetch(new Request(`${W}/callback?code=abc&state=${state}`, { headers: { cookie: `sl_oauth=${nonce}` } }), env);
+    const location = r2.headers.get("location");
+    const token = /#token=(.+)$/.exec(location)?.[1] ?? null;
+    return { location, token, discord: d.calls, r1, r2 };
+  } finally { d.restore(); }
+}
+
+const call = (env, path, { method = "GET", token, body, origin = SITE } = {}) => {
+  const headers = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (origin) headers.origin = origin;
+  if (body) headers["content-type"] = "application/json";
+  return panel.fetch(new Request(`${W}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined }), env);
+};
+
+async function staffToken(env, roles, opts = {}) {
+  const { token } = await connect(env, { member: { roles }, ...opts });
+  assert.ok(token, "connexion attendue");
+  return token;
+}
+
+/* ---------- Connexion Discord ---------- */
+
+test("/login : redirige vers Discord avec les bons réglages et un état signé", async () => {
+  const env = makeEnv();
+  const r = await panel.fetch(new Request(`${W}/login`), env);
+  assert.equal(r.status, 302);
+  const loc = new URL(r.headers.get("location"));
+  assert.equal(loc.origin + loc.pathname, "https://discord.com/oauth2/authorize");
+  assert.equal(loc.searchParams.get("client_id"), env.DISCORD_CLIENT_ID);
+  assert.equal(loc.searchParams.get("scope"), "identify guilds.members.read");
+  assert.equal(loc.searchParams.get("redirect_uri"), `${W}/callback`);
+  assert.equal(loc.searchParams.get("response_type"), "code");
+  assert.match(loc.searchParams.get("state"), /^[\w-]+\.[\w-]+$/);
+  const cookie = r.headers.get("set-cookie");
+  assert.match(cookie, /HttpOnly/); assert.match(cookie, /Secure/); assert.match(cookie, /SameSite=Lax/);
+  assert.ok(!loc.href.includes(env.DISCORD_CLIENT_SECRET), "le secret ne sort jamais");
+});
+
+test("membre modération : accès accordé, niveau « mod », connexion journalisée", async () => {
+  const env = makeEnv();
+  const { location, token, discord, r2 } = await connect(env, { member: { roles: [ROLE_MOD], nick: "Moncef" } });
+  assert.ok(location.startsWith(`${PANEL_URL}#token=`));
+  assert.match(r2.headers.get("set-cookie"), /Max-Age=0/, "cookie temporaire effacé");
+  const me = await (await call(env, "/api/me", { token })).json();
+  assert.equal(me.level, "mod"); assert.equal(me.name, "Moncef"); assert.equal(me.id, "999999999999999999");
+  assert.match(me.avatar, /^https:\/\/cdn\.discordapp\.com\/avatars\/999999999999999999\/abc123\.png/);
+  const tokenCall = discord.find((c) => c.url.endsWith("/oauth2/token"));
+  assert.ok(String(tokenCall.init.body).includes("client_secret=client-secret"), "échange du code côté serveur");
+  assert.equal(env.DB.raw.prepare("SELECT action FROM audit").all()[0].action, "connexion");
+});
+
+test("rôle administration (n'importe lequel de la liste) : niveau « admin » ; l'admin l'emporte", async () => {
+  const env = makeEnv();
+  const t1 = await staffToken(env, [ROLE_ADMIN2]);
+  assert.equal((await (await call(env, "/api/me", { token: t1 })).json()).level, "admin");
+  const t2 = await staffToken(env, [ROLE_MOD, ROLE_ADMIN]);
+  assert.equal((await (await call(env, "/api/me", { token: t2 })).json()).level, "admin");
+});
+
+test("accès refusé : pas dans le serveur, pas de rôle staff, refus de l'utilisateur, erreur Discord", async () => {
+  const env = makeEnv();
+  assert.equal((await connect(env, { member: null })).location, `${PANEL_URL}#error=not_member`);
+  assert.equal((await connect(env, { member: { roles: ["777777777777777777"] } })).location, `${PANEL_URL}#error=not_staff`);
+  assert.equal((await connect(env, { member: { roles: [] } })).location, `${PANEL_URL}#error=not_staff`);
+  assert.equal((await connect(env, { tokenOk: false })).location, `${PANEL_URL}#error=oauth`);
+  const denied = await panel.fetch(new Request(`${W}/callback?error=access_denied`), env);
+  assert.equal(denied.headers.get("location"), `${PANEL_URL}#error=denied`);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM audit").get().n, 0, "aucune connexion refusée n'est journalisée comme réussie");
+});
+
+test("anti-falsification de la connexion : état absent, forgé ou ne correspondant pas au cookie", async () => {
+  const env = makeEnv();
+  const d = fakeDiscord();
+  try {
+    const r1 = await panel.fetch(new Request(`${W}/login`), env);
+    const state = new URL(r1.headers.get("location")).searchParams.get("state");
+    const nonce = state.split(".")[0];
+    const go = (qs, cookie) => panel.fetch(new Request(`${W}/callback?${qs}`, { headers: cookie ? { cookie } : {} }), env);
+    assert.equal((await go(`code=a&state=${state}`)).headers.get("location"), `${PANEL_URL}#error=state`, "sans cookie");
+    assert.equal((await go(`code=a&state=${state}`, "sl_oauth=autre")).headers.get("location"), `${PANEL_URL}#error=state`, "cookie différent");
+    assert.equal((await go(`code=a&state=${nonce}.forge`, `sl_oauth=${nonce}`)).headers.get("location"), `${PANEL_URL}#error=state`, "signature forgée");
+    assert.equal((await go(`code=a`, `sl_oauth=${nonce}`)).headers.get("location"), `${PANEL_URL}#error=state`, "sans état");
+    assert.equal(d.calls.length, 0, "Discord n'est jamais appelé avant la validation de l'état");
+  } finally { d.restore(); }
+});
+
+test("réglages manquants : message d'aide sans dévoiler de secret ; la racine reste accessible", async () => {
+  const env = makeEnv({ DISCORD_CLIENT_SECRET: "", SESSION_SECRET: "court", ROLES_MOD: "", ROLES_ADMIN: "", DB: undefined });
+  const r = await panel.fetch(new Request(`${W}/login`), env);
+  assert.equal(r.status, 500);
+  const body = await r.text();
+  for (const k of ["DISCORD_CLIENT_SECRET", "SESSION_SECRET", "ROLES_MOD", "DB"]) assert.ok(body.includes(k), k);
+  assert.ok(!body.includes("court"));
+  assert.equal((await panel.fetch(new Request(`${W}/`), env)).status, 200);
+});
+
+test("durée de session configurable", async () => {
+  const env = makeEnv({ SESSION_HOURS: "2" });
+  const token = await staffToken(env, [ROLE_MOD]);
+  const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+  assert.equal(payload.exp - payload.iat, 2 * 3600);
+});
+
+/* ---------- Sécurité des jetons ---------- */
+
+test("jetons falsifiés, expirés ou signés avec un autre secret : refusés", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  const [h, p, s] = token.split(".");
+  const forged = (obj) => `${h}.${Buffer.from(JSON.stringify(obj)).toString("base64url")}.${s}`;
+  const payload = JSON.parse(Buffer.from(p, "base64url").toString());
+
+  assert.equal((await call(env, "/api/me", { token })).status, 200);
+  assert.equal((await call(env, "/api/me", { token: forged({ ...payload, lvl: "admin" }) })).status, 401, "montée de niveau");
+  assert.equal((await call(env, "/api/me", { token: forged({ ...payload, exp: 4102444800 }) })).status, 401, "prolongation");
+  assert.equal((await call(env, "/api/me", { token: `${h}.${p}.` })).status, 401, "signature vide");
+  assert.equal((await call(env, "/api/me", { token: `${Buffer.from('{"alg":"none"}').toString("base64url")}.${p}.` })).status, 401, "alg none");
+  assert.equal((await call(env, "/api/me", { token: "n'importe quoi" })).status, 401);
+  assert.equal((await call(env, "/api/me", { token: undefined })).status, 401);
+  assert.equal((await call({ ...env, SESSION_SECRET: "z".repeat(48) }, "/api/me", { token })).status, 401, "autre secret");
+
+  const expiredEnv = makeEnv();
+  const realNow = Date.now;
+  const t = await staffToken(expiredEnv, [ROLE_MOD]);
+  Date.now = () => realNow() + 9 * 3600 * 1000;
+  try { assert.equal((await call(expiredEnv, "/api/me", { token: t })).status, 401, "expiré après 8 h"); } finally { Date.now = realNow; }
+});
+
+test("CORS : seul le site autorisé peut appeler l'API depuis un navigateur", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  const ok = await call(env, "/api/me", { token });
+  assert.equal(ok.headers.get("access-control-allow-origin"), SITE);
+  assert.equal((await call(env, "/api/me", { token, origin: "https://pirate.example" })).status, 403);
+  const pre = await panel.fetch(new Request(`${W}/api/sanctions`, { method: "OPTIONS", headers: { origin: SITE } }), env);
+  assert.equal(pre.status, 204);
+  assert.match(pre.headers.get("access-control-allow-headers"), /authorization/);
+  assert.match(pre.headers.get("access-control-allow-methods"), /DELETE/);
+});
+
+/* ---------- Journal de sanctions ---------- */
+
+const sanction = (over = {}) => ({ player: "Tony Santos", ref: "discord:123", type: "avertissement", reason: "RDM en ville", ...over });
+
+test("ajout d'une sanction : enregistrée avec l'auteur issu du jeton (jamais du corps de la requête)", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  const res = await call(env, "/api/sanctions", { method: "POST", token, body: sanction({ staff_name: "Usurpateur", staff_id: "1" }) });
+  assert.equal(res.status, 201);
+  const { id } = await res.json();
+  assert.ok(id > 0);
+  const list = (await (await call(env, "/api/sanctions", { token })).json()).sanctions;
+  assert.equal(list.length, 1);
+  assert.equal(list[0].player, "Tony Santos");
+  assert.equal(list[0].staff_name, "Jaguuar_");
+  assert.equal(env.DB.raw.prepare("SELECT staff_id FROM sanctions").get().staff_id, "999999999999999999");
+});
+
+test("validation : joueur, type, motif et durée du bannissement temporaire", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  const post = (b) => call(env, "/api/sanctions", { method: "POST", token, body: b });
+  assert.equal((await post(sanction({ player: "  " }))).status, 400);
+  assert.equal((await post(sanction({ type: "pirate" }))).status, 400);
+  assert.equal((await post(sanction({ type: undefined }))).status, 400);
+  assert.equal((await post(sanction({ reason: "" }))).status, 400);
+  assert.equal((await post(sanction({ type: "ban_temp" }))).status, 400, "durée obligatoire");
+  assert.equal((await post(sanction({ type: "ban_temp", duration: "7 jours" }))).status, 201);
+  assert.equal((await post(sanction({ type: "note", duration: "7 jours" }))).status, 201);
+  const rows = env.DB.raw.prepare("SELECT type, duration FROM sanctions ORDER BY id").all();
+  assert.deepEqual(rows.map((r) => [r.type, r.duration]), [["ban_temp", "7 jours"], ["note", ""]], "durée ignorée hors bannissement temporaire");
+  const bad = await panel.fetch(new Request(`${W}/api/sanctions`, { method: "POST", headers: { authorization: `Bearer ${token}`, origin: SITE }, body: "pas du json" }), env);
+  assert.equal(bad.status, 400);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM sanctions").get().n, 2);
+});
+
+test("textes tronqués aux longueurs prévues", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  await call(env, "/api/sanctions", { method: "POST", token, body: sanction({ player: "p".repeat(500), reason: "r".repeat(5000) }) });
+  const row = env.DB.raw.prepare("SELECT player, reason FROM sanctions").get();
+  assert.equal(row.player.length, 80); assert.equal(row.reason.length, 500);
+});
+
+test("recherche : joueur, identifiant, motif ; les caractères % et _ sont traités littéralement", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  const add = (b) => call(env, "/api/sanctions", { method: "POST", token, body: b });
+  await add(sanction({ player: "Tony Santos", ref: "discord:111", reason: "RDM" }));
+  await add(sanction({ player: "Marie Dupont", ref: "licence:abc", reason: "Troll à 100% du temps" }));
+  await add(sanction({ player: "Paul_Durand", ref: "", reason: "VDM" }));
+  const search = async (q) => (await (await call(env, `/api/sanctions?q=${encodeURIComponent(q)}`, { token })).json()).sanctions.map((s) => s.player);
+  assert.deepEqual(await search("tony"), ["Tony Santos"]);
+  assert.deepEqual(await search("licence:abc"), ["Marie Dupont"]);
+  assert.deepEqual(await search("vdm"), ["Paul_Durand"]);
+  assert.deepEqual(await search("100%"), ["Marie Dupont"], "% n'est pas un joker");
+  assert.deepEqual(await search("%"), ["Marie Dupont"]);
+  assert.deepEqual(await search("Paul_D"), ["Paul_Durand"]);
+  assert.deepEqual(await search("P_ul"), [], "_ n'est pas un joker");
+  assert.equal((await search("")).length, 3);
+  assert.deepEqual(await search("introuvable"), []);
+});
+
+test("injection SQL : les textes sont stockés tels quels, les tables restent intactes", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  const evil = "'); DROP TABLE sanctions; --";
+  assert.equal((await call(env, "/api/sanctions", { method: "POST", token, body: sanction({ player: evil, reason: evil }) })).status, 201);
+  const found = (await (await call(env, `/api/sanctions?q=${encodeURIComponent(evil)}`, { token })).json()).sanctions;
+  assert.equal(found.length, 1);
+  assert.equal(found[0].player, evil);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM sanctions").get().n, 1);
+});
+
+test("suppression : réservée à l'administration, « douce » (la ligne reste en base) et journalisée", async () => {
+  const env = makeEnv();
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const { id } = await (await call(env, "/api/sanctions", { method: "POST", token: mod, body: sanction() })).json();
+
+  assert.equal((await call(env, `/api/sanctions/${id}`, { method: "DELETE", token: mod })).status, 403, "un modérateur ne supprime pas");
+  assert.equal((await call(env, `/api/sanctions/${id}`, { method: "DELETE", token: admin })).status, 200);
+  assert.equal((await (await call(env, "/api/sanctions", { token: admin })).json()).sanctions.length, 0, "disparaît de la liste");
+  const kept = env.DB.raw.prepare("SELECT deleted_at, deleted_by FROM sanctions WHERE id = ?").get(id);
+  assert.ok(kept.deleted_at); assert.equal(kept.deleted_by, "888888888888888888");
+  assert.equal((await call(env, `/api/sanctions/${id}`, { method: "DELETE", token: admin })).status, 404, "déjà supprimée");
+  assert.equal((await call(env, "/api/sanctions/99999", { method: "DELETE", token: admin })).status, 404);
+  assert.equal((await call(env, "/api/sanctions/abc", { method: "DELETE", token: admin })).status, 404);
+  assert.equal((await call(env, "/api/sanctions/1;DROP", { method: "DELETE", token: admin })).status, 404);
+});
+
+test("journal d'activité : réservé à l'administration, du plus récent au plus ancien", async () => {
+  const env = makeEnv();
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const { id } = await (await call(env, "/api/sanctions", { method: "POST", token: mod, body: sanction() })).json();
+  await call(env, `/api/sanctions/${id}`, { method: "DELETE", token: admin });
+
+  assert.equal((await call(env, "/api/audit", { token: mod })).status, 403);
+  const { audit } = await (await call(env, "/api/audit", { token: admin })).json();
+  assert.deepEqual(audit.map((a) => a.action), ["sanction supprimée", "sanction ajoutée", "connexion", "connexion"]);
+  assert.match(audit[1].target, /Tony Santos/);
+});
+
+test("routes inconnues et méthodes non prévues", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  assert.equal((await call(env, "/api/inconnue", { token })).status, 404);
+  assert.equal((await call(env, "/api/me", { token, method: "POST" })).status, 404);
+  assert.equal((await panel.fetch(new Request(`${W}/nimporte`), env)).status, 404);
+});
+
+test("corps de requête qui n'est pas un objet (null, tableau, nombre) : refus 400, pas d'erreur 500", async () => {
+  const env = makeEnv();
+  const token = await staffToken(env, [ROLE_MOD]);
+  for (const raw of ["null", "[]", "42", '"texte"']) {
+    const res = await panel.fetch(new Request(`${W}/api/sanctions`, { method: "POST", headers: { authorization: `Bearer ${token}`, origin: SITE }, body: raw }), env);
+    assert.equal(res.status, 400, raw);
+  }
+});
+
+test("base non initialisée (schema.sql oublié) : retour clair « error=server », aucun jeton délivré", async () => {
+  const empty = { prepare: () => ({ bind: () => ({ run: async () => { throw new Error("no such table: audit"); } }) }) };
+  const { location, token } = await connect(makeEnv({ DB: empty }));
+  assert.equal(location, `${PANEL_URL}#error=server`);
+  assert.equal(token, null);
+});
