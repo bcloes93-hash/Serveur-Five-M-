@@ -9,7 +9,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `index.html` | Accueil : bannière, statut en direct, présentation, étapes pour rejoindre |
 | `reglement.html`, `js/reglement.js`, `js/rules-render.js` | Page Règlement : chapitres à gauche, règle choisie à droite, recherche, adresses directes (`#r5-12`), date de mise à jour, barème indicatif. Le contenu est géré depuis le panel staff (onglet *Règlement*) |
 | `data/reglement.json` | Version d'origine du règlement (import initial dans le panel, et filet de sécurité si le panel est injoignable) |
-| `equipe.html` | Équipe du serveur (fondateur, manager, admins, modérateur) |
+| `equipe.html`, `js/equipe.js`, `js/org-model.js` | Équipe du serveur : organigramme en direct (celui du panel, synchronisé), avec liste d'origine en secours |
 | `candidature.html` | Candidature WL (joueur) et candidature Staff, en deux onglets |
 | `js/config.js` | **Seul fichier à modifier** : lien Discord et code cfx.re |
 | `css/style.css` | Thème néon (couleurs en variables CSS au début du fichier) |

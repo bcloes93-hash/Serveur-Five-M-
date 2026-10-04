@@ -1291,3 +1291,101 @@ test("règlement : le barème a aussi des sections libres (facteurs, récidive�
   await send(env, "/api/rules-bareme", t.manager, "PUT", { sections: [{ title: "<img src=x onerror=alert(1)>", body: "<script>1</script>" }] });
   assert.equal((await getPublic(env)).data.bareme.sections[0].title, "<img src=x onerror=alert(1)>");
 });
+
+/* ---------- Équipe publique : organigramme et photos ---------- */
+
+const teamEnv = levelsEnv;
+const getTeam = async (env, origin = SITE) => { const r = await call(env, "/api/public/team", { origin }); return { r, data: await r.json() }; };
+
+test("équipe publique : seules les personnes placées dans l'arbre, sans aucun identifiant Discord, dans l'ordre de l'organigramme", async () => {
+  const env = teamEnv();
+  const t = await tokens(env);
+  assert.deepEqual((await getTeam(env)).data, { members: [] }, "organigramme vide");
+  const add = async (name, kind, position = 0, role = "") => (await (await send(env, "/api/org", t.admin, "POST", { name, kind, position, role })).json()).id;
+  const idFounder = await add("Jaguuar_", "founder", 0, "Fondateur · Développeur");
+  const idMod = await add("Moncef", "mod_rp", 1);
+  const idAdm = await add("Isar", "adm_legal", 0);
+  const idAdm2 = await add("Taalback", "adm_legal", 2);
+  await add("Pas encore placé", "other", 0);
+  env.DB.raw.prepare("INSERT INTO org (name, role, grp, tier, kind, position) VALUES ('Ancien rang', 'x', 'g', 3, 'legacy_kind', 0)").run();   // case qui n'existe plus
+  env.DB.raw.prepare("UPDATE org SET discord_id = '123456789012345678', avatar = 'abc123' WHERE id = ?").run(idAdm);
+  env.DB.raw.prepare("UPDATE org SET discord_id = '123456789012345679', avatar = 'bad hash!' WHERE id = ?").run(idMod);
+  const { r, data } = await getTeam(env);
+  assert.equal(r.status, 200);
+  assert.deepEqual(data.members.map((m) => [m.name, m.key]), [["Jaguuar_", "founder"], ["Isar", "adm_legal"], ["Taalback", "adm_legal"], ["Moncef", "mod_rp"]], "du haut vers le bas, puis par ordre dans la case");
+  assert.equal(data.members[0].role, "Fondateur · Développeur");
+  assert.deepEqual(data.members.map((m) => m.photo), [false, true, false, false], "photo seulement si l'identifiant et l'image sont valides");
+  const raw = JSON.stringify(data);
+  assert.ok(!/discord_id|avatar"|123456789012345678|abc123|tier|grp|position/.test(raw), "aucun champ interne ni identifiant Discord : " + raw);
+  assert.ok(!raw.includes("Pas encore placé") && !raw.includes("Ancien rang"), "« À placer » et les anciennes cases n'apparaissent pas");
+  assert.equal(r.headers.get("access-control-allow-origin"), "*");
+  assert.match(r.headers.get("cache-control"), /public, max-age=\d+/);
+  assert.deepEqual(data.members.map((m) => m.id), [idFounder, idAdm, idAdm2, idMod]);
+  // lecture publique, sans connexion, depuis n'importe quel site ; rien d'écrit par ce chemin
+  assert.equal((await call(env, "/api/public/team", { origin: "https://autre-site.example" })).status, 200);
+  assert.equal((await call(env, "/api/public/team", { method: "POST", body: { a: 1 } })).status, 405);
+  assert.equal((await call(env, "/api/public/team", { method: "OPTIONS", origin: "https://autre-site.example" })).status, 204);
+  assert.equal((await call(env, "/api/public/inconnu")).status, 404);
+});
+
+test("équipe publique : un déplacement dans le panel se retrouve aussitôt dans la réponse publique", async () => {
+  const env = teamEnv();
+  const t = await tokens(env);
+  const id = (await (await send(env, "/api/org", t.admin, "POST", { name: "Moncef", kind: "other" })).json()).id;
+  assert.deepEqual((await getTeam(env)).data.members, [], "à placer : pas public");
+  assert.equal((await send(env, `/api/org/${id}`, t.admin, "PUT", { name: "Moncef", kind: "mod_legal", position: 0 })).status, 200);
+  assert.deepEqual((await getTeam(env)).data.members.map((m) => [m.name, m.key]), [["Moncef", "mod_legal"]]);
+  assert.equal((await send(env, `/api/org/${id}`, t.admin, "PUT", { name: "Moncef", kind: "adm_rp", position: 0 })).status, 200);
+  assert.deepEqual((await getTeam(env)).data.members.map((m) => [m.name, m.key]), [["Moncef", "adm_rp"]], "déplacé dans une autre case");
+  assert.equal((await send(env, `/api/org/${id}`, t.admin, "PUT", { name: "Moncef", kind: "other", position: 0 })).status, 200);
+  assert.deepEqual((await getTeam(env)).data.members, [], "remis dans « À placer » : retiré du site");
+});
+
+test("équipe publique : une ancienne base (sans colonnes Discord) ou sans table ne casse rien", async () => {
+  const old = teamEnv();
+  old.DB.raw.exec("ALTER TABLE org DROP COLUMN discord_id; ALTER TABLE org DROP COLUMN avatar;");
+  old.DB.raw.prepare("INSERT INTO org (name, role, grp, tier, kind, position) VALUES ('Isar', 'Admin', 'Administration', 3, 'adm_legal', 0)").run();
+  assert.deepEqual((await getTeam(old)).data.members.map((m) => [m.name, m.photo]), [["Isar", false]]);
+  const none = teamEnv();
+  none.DB.raw.exec("DROP TABLE org");
+  assert.deepEqual((await getTeam(none)).data, { members: [] });
+});
+
+test("photos publiques : relayées depuis Discord pour les personnes placées ; rien pour les autres", async () => {
+  const env = teamEnv();
+  const t = await tokens(env);
+  const add = async (name, kind) => (await (await send(env, "/api/org", t.admin, "POST", { name, kind })).json()).id;
+  const placed = await add("Isar", "adm_legal"), tray = await add("Réserve", "other"), noPhoto = await add("Sans photo", "mod_rp");
+  env.DB.raw.prepare("UPDATE org SET discord_id = '123456789012345678', avatar = 'abc123' WHERE id IN (?, ?)").run(placed, tray);
+  const original = globalThis.fetch, calls = [];
+  const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  globalThis.fetch = async (url) => { calls.push(String(url)); return new Response(PNG, { status: 200, headers: { "content-type": "image/png" } }); };
+  try {
+    const ok = await call(env, `/api/public/avatar/${placed}`, { origin: "https://autre-site.example" });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.headers.get("content-type"), "image/png");
+    assert.match(ok.headers.get("cache-control"), /max-age=86400/);
+    assert.equal(ok.headers.get("access-control-allow-origin"), "*");
+    assert.deepEqual([...new Uint8Array(await ok.arrayBuffer())], [...PNG]);
+    assert.deepEqual(calls, ["https://cdn.discordapp.com/avatars/123456789012345678/abc123.png?size=64"], "une seule adresse, construite par le relais à partir de valeurs contrôlées");
+    // personne dans « À placer », sans photo, ou inconnue : 404 sans même appeler Discord
+    for (const id of [tray, noPhoto, 99999]) assert.equal((await call(env, `/api/public/avatar/${id}`)).status, 404, `id ${id}`);
+    assert.equal(calls.length, 1);
+    // adresses invalides
+    for (const path of ["/api/public/avatar/abc", "/api/public/avatar/", "/api/public/avatar/1/2", "/api/public/avatar/-1", "/api/public/avatar/12345678901234"]) assert.equal((await call(env, path)).status, 404, path);
+    assert.equal((await call(env, `/api/public/avatar/${placed}`, { method: "POST", body: { a: 1 } })).status, 405);
+    // Discord répond mal : 404
+    globalThis.fetch = async () => new Response("nope", { status: 404 });
+    assert.equal((await call(env, `/api/public/avatar/${placed}`)).status, 404);
+    globalThis.fetch = async () => new Response("<html>", { status: 200, headers: { "content-type": "text/html" } });
+    assert.equal((await call(env, `/api/public/avatar/${placed}`)).status, 404, "pas une image : refusé");
+    globalThis.fetch = async () => { throw new Error("réseau"); };
+    assert.equal((await call(env, `/api/public/avatar/${placed}`)).status, 404, "Discord injoignable : 404, pas d'erreur serveur");
+    globalThis.fetch = async () => new Response(PNG, { status: 200, headers: { "content-type": "image/png", "content-length": "9999999" } });
+    assert.equal((await call(env, `/api/public/avatar/${placed}`)).status, 404, "image démesurée : refusée");
+  } finally { globalThis.fetch = original; }
+  // un identifiant ou un hash suspect en base n'atteint jamais Discord
+  env.DB.raw.prepare("UPDATE org SET avatar = 'a/../b' WHERE id = ?").run(placed);
+  globalThis.fetch = async () => { throw new Error("ne doit pas être appelé"); };
+  try { assert.equal((await call(env, `/api/public/avatar/${placed}`)).status, 404); } finally { globalThis.fetch = original; }
+});

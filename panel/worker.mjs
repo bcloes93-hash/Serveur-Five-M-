@@ -1,6 +1,8 @@
 /**
  * Panel staff de Santos Legacy RP (Cloudflare Worker).
  * Contenu protégé : journal de sanctions, barème des sanctions, commandes (Discord / FiveM), organigramme, journal d'activité.
+ * Équipe publique : l'organigramme (sans « À placer », sans identifiants Discord) et les photos passent par des routes
+ * publiques en lecture seule (/api/public/team, /api/public/avatar/N) : la page Équipe du site suit ainsi le panel.
  * Règlement public : les règles (chapitres, articles, barème indicatif) sont gérées ici et publiées sur le site
  * par une route publique en lecture seule (/api/public/rules) qui ne renvoie que ce qui est publié.
  *
@@ -425,11 +427,51 @@ async function readRules(env, drafts) {
   return { initialized, updated, chapters, rules, bareme };
 }
 
+const PUBLIC_CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, OPTIONS", "access-control-allow-headers": "content-type", "access-control-max-age": "600" };
+const validAvatar = (r) => /^\d{5,25}$/.test(String(r.discord_id || "")) && /^\w{1,64}$/.test(String(r.avatar || ""));
+
+/** Routes publiques (sans connexion, lecture seule) : règlement publié, équipe, photos. */
+async function publicApi(request, env, url) {
+  const p = url.pathname;
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: PUBLIC_CORS });
+  if (request.method !== "GET") return json({ error: "Méthode non autorisée." }, 405, PUBLIC_CORS);
+  if (p === "/api/public/rules") return publicRules(env);
+  if (p === "/api/public/team") return publicTeam(env);
+  const av = /^\/api\/public\/avatar\/(\d{1,12})$/.exec(p);
+  if (av) return publicAvatar(env, Number(av[1]));
+  return json({ error: "Introuvable." }, 404, PUBLIC_CORS);
+}
+
+/**
+ * L'équipe affichée sur le site : les personnes placées dans l'arbre de l'organigramme (pas celles de « À placer »),
+ * avec leur nom, leur titre et la case. Jamais d'identifiant Discord : la photo passe par /api/public/avatar/N.
+ */
+async function publicTeam(env) {
+  let rows;
+  try { rows = (await env.DB.prepare("SELECT id, name, role, kind, position, discord_id, avatar FROM org WHERE kind != 'other' ORDER BY tier, position, id").all()).results; }
+  catch {
+    try { rows = (await env.DB.prepare("SELECT id, name, role, kind, position FROM org WHERE kind != 'other' ORDER BY tier, position, id").all()).results; }   // avant migration-organigramme-discord.sql
+    catch { rows = []; }
+  }
+  const members = rows.filter((r) => KINDS.includes(r.kind) && r.kind !== "other").map((r) => ({ id: r.id, key: r.kind, name: r.name, role: r.role, photo: validAvatar(r) }));
+  return json({ members }, 200, { ...PUBLIC_CORS, "cache-control": "public, max-age=30" });
+}
+
+/** Photo Discord d'une personne placée dans l'arbre, relayée par le panel (le site n'expose ainsi aucun identifiant). */
+async function publicAvatar(env, id) {
+  const gone = () => new Response(null, { status: 404, headers: { ...SECURITY, ...PUBLIC_CORS, "cache-control": "public, max-age=60" } });
+  let row = null;
+  try { row = await env.DB.prepare("SELECT discord_id, avatar, kind FROM org WHERE id = ?").bind(id).first(); } catch { row = null; }
+  if (!row || row.kind === "other" || !validAvatar(row)) return gone();
+  let res;
+  try { res = await fetch(`https://cdn.discordapp.com/avatars/${row.discord_id}/${row.avatar}.png?size=64`, { cf: { cacheTtl: 86400, cacheEverything: true } }); } catch { return gone(); }
+  if (!res.ok || !/^image\//.test(res.headers.get("content-type") || "") || Number(res.headers.get("content-length") || 0) > 500000) return gone();
+  return new Response(res.body, { status: 200, headers: { ...SECURITY, ...PUBLIC_CORS, "content-type": "image/png", "cache-control": "public, max-age=86400" } });
+}
+
 /** Réponse publique (sans authentification) : uniquement ce qui est publié, sans identifiants ni auteurs. */
-async function publicRules(request, env) {
-  const cors = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, OPTIONS", "access-control-allow-headers": "content-type", "access-control-max-age": "600" };
-  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-  if (request.method !== "GET") return json({ error: "Méthode non autorisée." }, 405, cors);
+async function publicRules(env) {
+  const cors = PUBLIC_CORS;
   let data;
   try { data = await readRules(env, false); } catch { return json({ initialized: false }, 200, cors); }   // tables pas encore créées
   if (!data.initialized) return json({ initialized: false }, 200, cors);
@@ -650,7 +692,7 @@ async function rulesApi(request, env, url, user, reply) {
 /* ---------- API (jeton obligatoire) ---------- */
 
 async function api(request, env, url) {
-  if (url.pathname === "/api/public/rules") return publicRules(request, env);   // lecture publique du règlement publié
+  if (url.pathname.startsWith("/api/public/")) return publicApi(request, env, url);   // lecture publique : règlement publié, équipe, photos
   const allowed = String(env.ALLOWED_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean);
   const origin = request.headers.get("Origin") || "";
   const cors = allowed.includes(origin)

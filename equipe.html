@@ -58,6 +58,15 @@
 
         <p class="team__join">Envie de rejoindre l'équipe ? <a href="candidature.html#staff">Déposez votre candidature staff</a>.</p>
 
+        <!-- Organigramme en direct : il suit le panel staff. Affiché seulement si le panel répond ; sinon la liste ci-dessous reste affichée. -->
+        <div id="team-live" hidden>
+          <h2 class="team__group">Organigramme du staff</h2>
+          <p class="sr-only" id="team-summary"></p>
+          <div class="org__chart" id="team-chart"></div>
+          <div class="org__legend" id="team-legend"></div>
+        </div>
+
+        <div id="team-static">
         <h2 class="team__group">Direction</h2>
         <ul class="team__grid">
           <li class="member member--founder">
@@ -111,6 +120,7 @@
             </div>
           </li>
         </ul>
+        </div>
 
       </div>
     </section>
@@ -141,5 +151,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/org-model.js"></script>
+  <script src="js/equipe.js"></script>
 </body>
 </html>

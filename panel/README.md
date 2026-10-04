@@ -95,6 +95,14 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
     connectées au moins une fois apparaissent ainsi. Sont mémorisés, dans la base protégée (visible du seul staff connecté) :
     l'identifiant Discord, le pseudo et l'identifiant de la photo.
 
+  **Page publique « Équipe »** : l'organigramme est affiché aux visiteurs sur `equipe.html`, **tel qu'il est dans le panel**
+  (mêmes cases, mêmes pôles, mêmes couleurs, même légende) et il **suit vos déplacements** : le site relit le panel à chaque
+  visite (route publique en lecture seule `/api/public/team`, mise en cache 30 secondes). Sont affichés : le nom, le titre
+  personnalisé et la **photo Discord** de chaque personne **placée dans l'arbre**. Les personnes de « À placer » (dont tout
+  nouveau connecté) **ne sont jamais publiques** : placer quelqu'un dans l'arbre revient à le publier. Aucun identifiant
+  Discord n'est exposé : les photos passent par le panel (`/api/public/avatar/N`). Si le panel ne répond pas ou si personne
+  n'est placé, la liste d'origine de la page (écrite dans `equipe.html`) reste affichée.
+
   Ce schéma est une **représentation** de l'équipe : déplacer quelqu'un n'en change **ni les rôles Discord, ni les accès
   au panel** (qui viennent toujours des rôles Discord). Les noms des cases sont fixés dans le code (`worker.mjs` et
   `staff.js`) ; pour en renommer ou en ajouter, il faut modifier ces deux fichiers.
