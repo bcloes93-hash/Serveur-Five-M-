@@ -7,10 +7,10 @@
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
   var TYPES = { avertissement: "Avertissement", expulsion: "Expulsion", ban_temp: "Ban temporaire", ban_def: "Ban définitif", note: "Note" };
-  var LEVELS = { support: "Support", mod: "Modération", admin: "Administration", manager: "Responsable", founder: "Fondateur" };
+  var LEVELS = { support: "Support", mod: "Modération", admin: "Administration", manager: "Manager", founder: "Fondateur" };
   var RANK = { support: 1, mod: 2, admin: 3, manager: 4, founder: 5 };
   // Visibilité d'une commande : à partir de quel niveau elle apparaît.
-  var VISIBLE_FROM = { support: "Tout le staff", mod: "Modération et plus", admin: "Administration et plus", manager: "Responsable et plus", founder: "Fondateur uniquement" };
+  var VISIBLE_FROM = { support: "Tout le staff", mod: "Modération et plus", admin: "Administration et plus", manager: "Manager et plus", founder: "Fondateur uniquement" };
   var ERRORS = {
     denied: "Connexion annulée.",
     state: "La connexion a expiré ou a été interrompue. Réessayez.",

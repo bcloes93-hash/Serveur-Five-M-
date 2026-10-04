@@ -21,7 +21,7 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   - *Modération* : en plus, consulte le journal des sanctions et y ajoute des sanctions.
   - *Administration* : en plus, supprime des sanctions, modifie le barème, les commandes et l'organigramme, et consulte
     le journal d'activité.
-  - *Responsable* (facultatif) et *Fondateur* (facultatif) : mêmes droits que l'administration, avec une **visibilité
+  - *Manager* (facultatif) et *Fondateur* (facultatif) : mêmes droits que l'administration, avec une **visibilité
     plus large des commandes** (voir ci-dessous).
 
   Si une personne cumule plusieurs rôles, le niveau le plus élevé l'emporte. Un rôle absent de toutes les listes n'a aucun accès.
@@ -38,7 +38,7 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
 - **Journal d'activité** : connexions, sanctions ajoutées et supprimées. Une suppression est « douce » : la ligne reste
   en base, seul l'affichage la masque.
 - **Commandes** : deux listes, *Commandes Discord* et *Commandes FiveM*. Sous chacune, des **sous-catégories**
-  (Joueur, Support, Modérateur, Admin, Responsable, Fondateur, Console serveur… selon vos catégories) : un clic sur l'une
+  (Joueur, Support, Modérateur, Administrateur, Manager, Fondateur, Métiers, Technique… selon vos catégories) : un clic sur l'une
   affiche ses commandes, avec leur nombre ; « Toutes » affiche l'ensemble. La recherche porte toujours sur toutes les
   catégories, et un bouton « Copier » récupère la commande. Le staff connecté ne voit que les commandes de son niveau et
   des niveaux inférieurs ; l'administration les ajoute, les modifie et les supprime depuis le panel. Elles sont stockées
@@ -109,7 +109,7 @@ Dans le Worker → **Settings** :
 | `DISCORD_GUILD_ID` | Texte | l'ID du serveur |
 | `ROLES_MOD` | Texte | l'ID du rôle Modérateur (plusieurs : séparés par des virgules) |
 | `ROLES_ADMIN` | Texte | l'ID du rôle Admin (plusieurs : séparés par des virgules) |
-| `ROLES_MANAGER` | Texte (facultatif) | l'ID du rôle Responsable |
+| `ROLES_MANAGER` | Texte (facultatif) | l'ID du rôle Manager |
 | `ROLES_FOUNDER` | Texte (facultatif) | l'ID du rôle Fondateur |
 | `ROLES_SUPPORT` | Texte (facultatif) | l'ID du rôle Support (lecture seule des références, sans le journal des sanctions) |
 | `SESSION_SECRET` | **Secret** | une longue chaîne aléatoire, 48 caractères ou plus (générateur de mot de passe de votre navigateur) |
