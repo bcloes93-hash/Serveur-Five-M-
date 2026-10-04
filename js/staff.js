@@ -587,7 +587,7 @@
   });
   var ORG_KEYS = [].concat.apply([], ORG_ROWS).map(function (n) { return n[0]; });
   var GENERIC_ROLES = ["Fondateur", "Manager", "Admin", "Modérateur", "Support", "À placer"];
-  var orgState = { items: [], editing: null, dragId: null, clip: null, pole: "" };
+  var orgState = { items: [], editing: null, dragId: null, clip: null, pole: "", relayOk: true };
   var mForm = $("#member-form"), mStatus = $("#m-status"), oStatus = $("#org-status");
 
   function inTree(kind) { return Object.prototype.hasOwnProperty.call(ORG, kind); }
@@ -782,7 +782,11 @@
     var chart = $("#org-chart"), hint = $("#org-hint");
     clear(chart);
     hint.textContent = "";
-    var movable = isAdmin();
+    // Un relais pas à jour refuserait les nouvelles cases : on le dit, et on n'offre pas de déplacements qui échoueraient.
+    var movable = isAdmin() && orgState.relayOk;
+    $("#org-warn").hidden = !(isAdmin() && !orgState.relayOk);
+    $(".orgbar").hidden = !movable;
+    mForm.closest(".panelbox").hidden = !movable;
     $("#org-legend").hidden = !orgState.items.length;
     if (!orgState.items.length) {
       hint.textContent = movable ? "L'organigramme est vide. Ajoutez des membres avec le formulaire ci-dessous." : "L'organigramme est vide pour le moment.";
@@ -874,6 +878,7 @@
   function loadOrg() {
     return api("GET", "/api/org").then(function (data) {
       orgState.items = data.org;
+      orgState.relayOk = Array.isArray(data.nodes) && ORG_KEYS.concat(["other"]).every(function (k) { return data.nodes.indexOf(k) >= 0; });
       renderOrg(); renderMembers();
     }, function (e) { if (e.status !== 401) $("#org-hint").textContent = e.message || ""; });
   }

@@ -413,6 +413,8 @@ async function api(request, env, url) {
     },
     org: {
       list: "SELECT id, name, role, grp, tier, kind, position FROM org ORDER BY tier, position, id",
+      // On joint la liste des cases connues : le panel s'en sert pour repérer un relais pas à jour.
+      extra: () => ({ nodes: KINDS }),
       parse: parseMember, label_of: (v) => v.name,
       insert: ["INSERT INTO org (name, role, grp, tier, kind, position) VALUES (?, ?, ?, ?, ?, ?)", (v) => [v.name, v.role, v.grp, v.tier, v.kind, v.position]],
       update: ["UPDATE org SET name = ?, role = ?, grp = ?, tier = ?, kind = ?, position = ? WHERE id = ?", (v, id) => [v.name, v.role, v.grp, v.tier, v.kind, v.position, id]],
@@ -435,7 +437,7 @@ async function api(request, env, url) {
     }
     const stmt = env.DB.prepare(sql);
     const { results } = await (args.length ? stmt.bind(...args) : stmt).all();
-    return reply({ [listMatch[1]]: res.shape ? res.shape(results) : results });
+    return reply({ [listMatch[1]]: res.shape ? res.shape(results) : results, ...(res.extra ? res.extra() : {}) });
   }
 
   if (res && (listMatch ? request.method === "POST" : ["PUT", "DELETE"].includes(request.method))) {

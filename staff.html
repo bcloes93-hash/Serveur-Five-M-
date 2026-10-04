@@ -315,15 +315,16 @@
                 <div class="panelbox">
                   <h2 class="tabpanel__title">Organigramme</h2>
                   <p class="tabpanel__lead">L'équipe staff au complet, du haut vers le bas, avec les pôles de chaque rang.</p>
+                  <p class="org__warn" id="org-warn" role="alert" hidden><strong>Le relais du panel n'est pas à jour.</strong> Les déplacements sont désactivés tant que la dernière version de <code>panel/worker.mjs</code> n'est pas installée : dans Cloudflare, ouvrez <em>santos-legacy-staff</em> → <em>Edit code</em>, collez le nouveau code, cliquez sur <em>Deploy</em>, puis rechargez cette page.</p>
                   <div class="orgbar" data-admin hidden>
                     <p class="staff__hint">Glissez une carte pour la <strong>déplacer</strong> ; maintenez <strong>Ctrl</strong> (<strong>Option</strong> sur Mac) en glissant pour la <strong>copier</strong> dans un autre pôle. Sans souris : ouvrez les outils, puis « Déplacer vers… », ou « Copier » suivi de « Coller ici ». Une même personne peut figurer dans plusieurs pôles. Ce schéma représente l'équipe : il ne change <strong>ni les rôles Discord, ni les accès au panel</strong>.</p>
                     <button class="btn btn--ghost btn--small" type="button" id="org-edit" aria-pressed="false">Afficher les outils (copier, déplacer, retirer)</button>
                   </div>
                   <p class="org__clip" id="org-clip" hidden><span id="org-clip-text"></span> <button class="btn btn--ghost btn--small" type="button" id="org-clip-stop">Terminer la copie</button></p>
+                  <p class="form__status org__status" id="org-status" role="status" aria-live="polite"></p>
                   <p class="sr-only" id="org-summary"></p>
                   <div class="org__chart" id="org-chart"></div>
                   <div class="org__legend" id="org-legend" hidden></div>
-                  <p class="form__status" id="org-status" role="status" aria-live="polite"></p>
                   <p class="staff__hint" id="org-hint" aria-live="polite"></p>
                 </div>
 

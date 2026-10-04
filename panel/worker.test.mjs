@@ -486,6 +486,17 @@ test("organigramme : une personne peut être dans plusieurs cases, mais une seul
   assert.equal(audit.filter((x) => x.action === "organigramme : membre ajouté").length >= 6, true, "chaque copie est journalisée");
 });
 
+test("organigramme : la liste annonce les cases connues (le panel y repère un relais pas à jour)", async () => {
+  const env = makeEnv();
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const body = await (await call(env, "/api/org", { token: mod })).json();
+  assert.ok(Array.isArray(body.org) && Array.isArray(body.nodes));
+  for (const k of ["founder", "mgr_staff", "adm_legal", "adm_tech", "mod_com", "sup_bugs", "other"]) assert.ok(body.nodes.includes(k), k);
+  assert.equal(body.nodes.length, 19);
+  // les autres listes ne sont pas touchées
+  assert.deepEqual(Object.keys(await (await call(env, "/api/commands", { token: mod })).json()), ["commands"]);
+});
+
 test("organigramme pré-rempli avec seed.sql : le fondateur est en place, l'équipe attend d'être placée", async () => {
   const env = makeEnv();
   env.DB.raw.exec(readFileSync(new URL("./seed.sql", import.meta.url), "utf8"));

@@ -318,6 +318,10 @@ a:hover { color: #7be6ff; }
 /* ---------- Organigramme (arbre par pôles) ---------- */
 .orgbar { display: grid; gap: 12px; justify-items: start; margin-top: 4px; }
 .orgbar .staff__hint { margin: 0; }
+.org__warn { margin: 14px 0 0; padding: 14px 18px; border-radius: 12px; line-height: 1.55; color: var(--text); border: 1px solid rgba(251, 146, 60, 0.7); background: rgba(251, 146, 60, 0.1); }
+.org__warn[hidden] { display: none; }
+.org__status { margin: 12px 0 0; }
+.org__status:empty { display: none; }
 .org__clip { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 14px 0 0; padding: 12px 16px; border-radius: 12px; color: var(--text); border: 1px solid rgba(34, 211, 255, 0.55); background: rgba(34, 211, 255, 0.08); }
 .org__chart {
   container-type: inline-size; overflow-x: auto; margin-top: 24px; padding: 10px 4px 16px;
