@@ -366,6 +366,7 @@ a:hover { color: #7be6ff; }
 .chapter__title { margin: 0.1em 0 14px; font-family: var(--font-display); font-weight: 400; font-size: clamp(2.1rem, 4.4vw, 3rem); letter-spacing: 0.04em; line-height: 1.1; }
 .chapter__intro { display: grid; gap: 8px; padding: 16px 20px; border-radius: 12px; border: 1px solid var(--border); border-left: 3px solid var(--cyan); background: var(--surface); color: var(--text); }
 .chapter__intro p { margin: 0; }
+.chapter__intro ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .chapter__tools { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .chapter__tools[hidden] { display: none; }
 .rules__note {
