@@ -1,11 +1,3 @@
--- PROPOSITION de barème de sanctions, à relire et adapter par l'équipe avant usage.
--- Elle reprend les infractions du règlement public ; les paliers et les durées sont des suggestions courantes.
--- À exécuter UNE SEULE FOIS, après schema.sql (le refaire créerait des doublons).
--- Ensuite tout se modifie depuis le panel : Sanctions → Barème (compte Administration).
---
--- Paliers : du 1er au dernier, selon le nombre de récidives.
--- type : avertissement | expulsion | ban_temp (durée dans detail) | ban_def | autre (texte dans detail)
-
 INSERT INTO penalties (cat, name, steps, notes) VALUES
   ('Comportement', 'Insultes, harcèlement',
    '[{"type":"avertissement","detail":""},{"type":"ban_temp","detail":"3 jours"},{"type":"ban_temp","detail":"14 jours"},{"type":"ban_def","detail":""}]',
@@ -19,7 +11,6 @@ INSERT INTO penalties (cat, name, steps, notes) VALUES
   ('Comportement', 'Compte multiple',
    '[{"type":"avertissement","detail":"suppression du compte en trop"},{"type":"ban_temp","detail":"7 jours"}]',
    'Un seul compte par joueur, sauf accord explicite du staff.'),
-
   ('Roleplay', 'RDM (Random Deathmatch)',
    '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"3 jours"},{"type":"ban_temp","detail":"7 jours"}]',
    'Tuer ou agresser un joueur sans raison RP valable.'),
@@ -38,7 +29,6 @@ INSERT INTO penalties (cat, name, steps, notes) VALUES
   ('Roleplay', 'Combat logging',
    '[{"type":"avertissement","detail":""},{"type":"ban_temp","detail":"1 jour"},{"type":"ban_temp","detail":"7 jours"}]',
    'Se déconnecter pour éviter une scène RP en cours.'),
-
   ('Triche et économie', 'Abus de bug',
    '[{"type":"avertissement","detail":"retrait des gains"},{"type":"ban_temp","detail":"7 jours"},{"type":"ban_def","detail":""}]',
    'Retirer tous les gains obtenus grâce au bug. Un bug doit être signalé au staff.'),

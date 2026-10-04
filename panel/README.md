@@ -67,6 +67,18 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 2. **Edit code** → `Ctrl+A`, supprimez, puis collez le contenu de [`worker.mjs`](./worker.mjs) (bouton
    **Copy raw file** sur GitHub) → **Deploy**.
 
+> **Pourquoi les fichiers SQL n'ont pas de commentaires ?** La console Cloudflare met tout sur une seule ligne quand on
+> colle : un commentaire `--` masquerait alors tout le reste de la requête. Les fichiers sont donc volontairement sans
+> commentaire (un test le vérifie). Les tables sont décrites ci-dessous.
+
+| Table | Contenu |
+| --- | --- |
+| `sanctions` | Journal : joueur, identifiant facultatif, type (`avertissement`, `expulsion`, `ban_temp`, `ban_def`, `note`), motif, durée, auteur, date ; suppression « douce » (`deleted_at`) |
+| `audit` | Journal d'activité : connexions, ajouts, modifications et suppressions |
+| `commands` | Commandes Discord / FiveM (`platform`, catégorie, commande, description, exemple) |
+| `org` | Organigramme : nom, rôle affiché, groupe (`grp`), niveau (`tier`, 1 = haut), couleur (`kind`), ordre |
+| `penalties` | Barème : catégorie, infraction (`name`), paliers au format JSON (`steps`), précisions (`notes`) |
+
 ## Étape 4 – Relier la base et renseigner les réglages
 Dans le Worker → **Settings** :
 

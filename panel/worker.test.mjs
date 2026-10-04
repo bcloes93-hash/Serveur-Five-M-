@@ -550,3 +550,29 @@ test("barème proposé (seed-bareme.sql) : tous les cas et paliers sont valides"
   const admin = await staffToken(env, [ROLE_ADMIN]);
   for (const p of list) assert.equal((await send(env, "/api/penalties", admin, "POST", { cat: p.cat, name: p.name + " (copie)", notes: p.notes, steps: p.steps })).status, 201, p.name);
 });
+
+/* ---------- Fichiers SQL : compatibles avec la console Cloudflare ---------- */
+
+test("fichiers SQL : aucun commentaire, et collés sur une seule ligne (comme le fait la console D1) ils donnent le même résultat", () => {
+  const read = (f) => readFileSync(new URL(`./${f}`, import.meta.url), "utf8");
+  const oneLine = (s) => s.replace(/\r?\n/g, " ");
+  for (const f of ["schema.sql", "seed.sql", "seed-bareme.sql"]) {
+    assert.ok(!read(f).includes("--"), `${f} : un commentaire « -- » masquerait tout le reste une fois collé sur une seule ligne`);
+  }
+  const build = (transform) => {
+    const db = new DatabaseSync(":memory:");
+    for (const f of ["schema.sql", "seed.sql", "seed-bareme.sql"]) db.exec(transform(read(f)));
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((t) => t.name);
+    return JSON.stringify({
+      objects: db.prepare("SELECT type, name FROM sqlite_master ORDER BY type, name").all(),
+      columns: tables.map((t) => [t, db.prepare(`PRAGMA table_info(${t})`).all().map((c) => [c.name, c.type, c.notnull, c.dflt_value, c.pk])]),
+      org: db.prepare("SELECT * FROM org ORDER BY id").all(),
+      penalties: db.prepare("SELECT * FROM penalties ORDER BY id").all(),
+    });
+  };
+  const normal = build((s) => s);
+  assert.equal(build(oneLine), normal);
+  assert.deepEqual(JSON.parse(normal).columns.map((c) => c[0]), ["audit", "commands", "org", "penalties", "sanctions"]);
+  assert.equal(JSON.parse(normal).org.length, 6);
+  assert.equal(JSON.parse(normal).penalties.length, 13);
+});
