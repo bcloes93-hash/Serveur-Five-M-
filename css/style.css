@@ -317,6 +317,8 @@ a:hover { color: #7be6ff; }
 .rule__body > * { margin: 0; }
 .rule__body > * + * { margin-top: 12px; }
 .rule__body ul { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
+.rule__body ol { margin: 0; padding-left: 1.5em; display: grid; gap: 8px; }
+.rule__body ol li::marker { color: var(--cyan); font-weight: 700; }
 .rule__label {
   display: block; width: fit-content; padding: 2px 11px; border-radius: 999px; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--cyan); border: 1px solid rgba(34, 211, 255, 0.5); background: rgba(34, 211, 255, 0.1);
