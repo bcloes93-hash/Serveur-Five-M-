@@ -7,7 +7,8 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | Fichier | Rôle |
 | --- | --- |
 | `index.html` | Accueil : bannière, statut en direct, présentation, étapes pour rejoindre |
-| `reglement.html` | Règlement (texte provisoire à relire et adapter) |
+| `reglement.html` | Règlement (conditions d'accès, mort RP, commerce réel et streams fournis par le fondateur ; le reste est un texte type à adapter) |
+| `equipe.html` | Équipe du serveur (fondateur, manager, admins, modérateur) |
 | `js/config.js` | **Seul fichier à modifier** : lien Discord et code cfx.re |
 | `css/style.css` | Thème néon (couleurs en variables CSS au début du fichier) |
 | `js/main.js` | Menu mobile, animations, statistiques Discord et FiveM |
@@ -37,6 +38,6 @@ python3 -m http.server 8000
 
 ## Mise en ligne gratuite (GitHub Pages)
 
-1. Fusionner la branche de travail dans `main`.
+1. Le code à publier doit être sur la branche `main`.
 2. Sur GitHub : **Settings → Pages → Build and deployment → Deploy from a branch**, choisir `main` et le dossier `/ (root)`.
 3. Le site est publié à l'adresse `https://<utilisateur>.github.io/<dépôt>/`. Un nom de domaine personnalisé peut être ajouté dans la même page.

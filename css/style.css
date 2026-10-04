@@ -312,6 +312,47 @@ a:hover { color: #7be6ff; }
   border: 1px solid rgba(139, 92, 246, 0.45); background: rgba(139, 92, 246, 0.1); color: #d9d6f7;
 }
 
+/* ---------- Prérequis (accueil) ---------- */
+.prereq { list-style: none; margin: 22px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.prereq li {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 999px; font-weight: 600; font-size: 0.95rem;
+  color: var(--text); border: 1px solid rgba(34, 211, 255, 0.5); background: rgba(34, 211, 255, 0.08);
+}
+.prereq li::before { content: "✓"; color: var(--cyan); }
+
+/* ---------- Page équipe ---------- */
+.team { padding: 24px 0 clamp(64px, 9vw, 110px); }
+.team__group {
+  margin: 40px 0 16px; font-family: var(--font-display); font-weight: 400;
+  font-size: 1.9rem; letter-spacing: 0.06em; color: var(--text);
+  display: flex; align-items: center; gap: 16px;
+}
+.team__group::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+.team__group:first-child { margin-top: 8px; }
+.team__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+
+.member {
+  --accent: var(--cyan);
+  display: flex; align-items: center; gap: 16px; padding: 18px 20px;
+  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); transition: transform .25s, background .25s, box-shadow .25s;
+}
+.member:hover { transform: translateY(-3px); background: var(--surface-hover); box-shadow: 0 12px 34px rgba(139, 92, 246, 0.18); }
+.member--founder { --accent: var(--pink); }
+.member--manager { --accent: var(--violet); }
+.member--admin { --accent: var(--cyan); }
+.member--mod { --accent: var(--green); }
+.member__avatar {
+  flex: none; width: 52px; height: 52px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 1.8rem; line-height: 1; color: #fff;
+  background: var(--accent); background: linear-gradient(135deg, var(--accent), rgba(255, 255, 255, 0.18) 140%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.member__name { display: block; font-weight: 700; font-size: 1.15rem; line-height: 1.25; overflow-wrap: anywhere; }
+.member__role { display: block; margin-top: 2px; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.04em; color: var(--accent); }
+
 /* ---------- Animations d'apparition ---------- */
 .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 .js .reveal.is-visible { opacity: 1; transform: none; }
