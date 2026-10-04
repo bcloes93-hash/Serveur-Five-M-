@@ -65,6 +65,9 @@
   /* ---------- Navigation entre les sections ---------- */
   var tabs = $$('.staff__tabs [data-view]');
   function go(name) {
+    // Si on était en bas d'une longue section, on remonte au début de la nouvelle.
+    var main = $(".staff__main");
+    if (main && main.getBoundingClientRect().top < 0) main.scrollIntoView({ block: "start" });
     tabs.forEach(function (t) {
       var on = t.getAttribute("data-view") === name;
       t.setAttribute("aria-selected", String(on));
@@ -81,12 +84,21 @@
     t.addEventListener("keydown", function (e) {
       var visible = tabs.filter(function (x) { return !x.hidden; });
       var k = visible.indexOf(t), j = null;
-      if (e.key === "ArrowRight") j = (k + 1) % visible.length;
-      else if (e.key === "ArrowLeft") j = (k - 1 + visible.length) % visible.length;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") j = (k + 1) % visible.length;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") j = (k - 1 + visible.length) % visible.length;
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = visible.length - 1;
       if (j !== null) { e.preventDefault(); visible[j].focus(); go(visible[j].getAttribute("data-view")); }
     });
   });
   $$("[data-go]").forEach(function (b) { b.addEventListener("click", function () { go(b.getAttribute("data-go")); }); });
+
+  // Menu vertical sur grand écran, horizontal sur mobile : on l'indique aux lecteurs d'écran.
+  var tablist = $(".staff__tabs");
+  var wide = window.matchMedia ? window.matchMedia("(min-width: 901px)") : null;
+  function syncOrientation() { tablist.setAttribute("aria-orientation", wide && wide.matches ? "vertical" : "horizontal"); }
+  syncOrientation();
+  if (wide && wide.addEventListener) wide.addEventListener("change", syncOrientation);
 
   /* ---------- Journal de sanctions ---------- */
   var list = $("#sanction-list");
