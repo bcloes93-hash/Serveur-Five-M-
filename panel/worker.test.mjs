@@ -347,7 +347,7 @@ test("commandes : tout le staff lit, seule l'administration ajoute, modifie et s
 
   const listed = (await (await call(env, "/api/commands", { token: mod })).json()).commands;
   assert.equal(listed.length, 1, "un modérateur peut lire");
-  assert.deepEqual({ ...listed[0], id: undefined }, { id: undefined, platform: "fivem", cat: "Modération", cmd: "/kick [joueur] [motif]", descr: "Expulse un joueur du serveur.", example: "/kick 12 spam" });
+  assert.deepEqual({ ...listed[0], id: undefined }, { id: undefined, platform: "fivem", cat: "Modération", cmd: "/kick [joueur] [motif]", descr: "Expulse un joueur du serveur.", example: "/kick 12 spam", min_level: "support" });
 
   assert.equal((await send(env, `/api/commands/${id}`, mod, "PUT", cmdBody({ cmd: "/x" }))).status, 403);
   assert.equal((await send(env, `/api/commands/${id}`, mod, "DELETE")).status, 403);
@@ -644,4 +644,144 @@ test("support : aucun accès au journal des sanctions ni au journal d'activité,
 
   // la modération, elle, garde son accès
   assert.equal((await call(env, "/api/sanctions", { token: mod })).status, 200);
+});
+
+
+/* ---------- Cinq niveaux et visibilité des commandes par niveau ---------- */
+
+const ROLE_MANAGER = "555555555555555500";
+const ROLE_FOUNDER = "555555555555555501";
+const levelsEnv = () => makeEnv({ ROLES_SUPPORT: ROLE_SUPPORT, ROLES_MANAGER: ROLE_MANAGER, ROLES_FOUNDER: ROLE_FOUNDER });
+const ALL_LEVELS = ["support", "mod", "admin", "manager", "founder"];
+const ROLE_OF = { support: ROLE_SUPPORT, mod: ROLE_MOD, admin: ROLE_ADMIN, manager: ROLE_MANAGER, founder: ROLE_FOUNDER };
+
+async function tokens(env) {
+  const out = {};
+  let n = 0;
+  for (const lvl of ALL_LEVELS) out[lvl] = await staffToken(env, [ROLE_OF[lvl]], { userId: `99999999999999${String(++n).padStart(4, "0")}` });
+  return out;
+}
+
+test("niveaux : fondateur > responsable > administration > modération > support ; le plus élevé l'emporte", async () => {
+  const env = levelsEnv();
+  const t = await tokens(env);
+  for (const lvl of ALL_LEVELS) assert.equal((await (await call(env, "/api/me", { token: t[lvl] })).json()).level, lvl, lvl);
+  const both = await staffToken(env, [ROLE_MOD, ROLE_FOUNDER, ROLE_SUPPORT]);
+  assert.equal((await (await call(env, "/api/me", { token: both })).json()).level, "founder");
+  const targets = env.DB.raw.prepare("SELECT target FROM audit ORDER BY id").all().map((r) => r.target);
+  assert.deepEqual(targets.slice(0, 5), ["support", "modération", "administration", "responsable", "fondateur"]);
+});
+
+test("niveaux : un seul rôle fondateur suffit à configurer le panel ; sans les nouveaux réglages, rien ne change", async () => {
+  const onlyFounder = makeEnv({ ROLES_MOD: "", ROLES_ADMIN: "", ROLES_FOUNDER: ROLE_FOUNDER });
+  assert.equal((await panel.fetch(new Request(`${W}/login`), onlyFounder)).status, 302);
+  const plain = makeEnv();   // ni ROLES_MANAGER ni ROLES_FOUNDER
+  assert.equal((await connect(plain, { member: { roles: [ROLE_FOUNDER] } })).location, `${PANEL_URL}#error=not_staff`);
+  assert.equal((await (await call(plain, "/api/me", { token: await staffToken(plain, [ROLE_ADMIN]) })).json()).level, "admin");
+});
+
+const addRow = (env, platform, cmd, level) => env.DB.raw.prepare("INSERT INTO commands (platform, cat, cmd, descr, example, min_level) VALUES (?, 'Test', ?, ?, '', ?)").run(platform, cmd, `description de ${cmd}`, level);
+
+test("commandes : chaque niveau ne reçoit que les commandes de son niveau et des niveaux inférieurs", async () => {
+  const env = levelsEnv();
+  for (const lvl of ALL_LEVELS) { addRow(env, "fivem", `/cmd-${lvl}`, lvl); addRow(env, "discord", `/disc-${lvl}`, lvl); }
+  env.DB.raw.prepare("INSERT INTO commands (platform, cat, cmd, descr) VALUES ('fivem', 'Ancien', '/ancienne', 'sans niveau')").run();   // niveau par défaut
+  const t = await tokens(env);
+
+  for (const [i, lvl] of ALL_LEVELS.entries()) {
+    const res = await call(env, "/api/commands", { token: t[lvl] });
+    const text = await res.text();
+    const cmds = JSON.parse(text).commands.map((c) => c.cmd).sort();
+    const expected = [...ALL_LEVELS.slice(0, i + 1).flatMap((l) => [`/cmd-${l}`, `/disc-${l}`]), "/ancienne"].sort();
+    assert.deepEqual(cmds, expected, `niveau ${lvl}`);
+    for (const hidden of ALL_LEVELS.slice(i + 1)) {
+      assert.ok(!text.includes(`/cmd-${hidden}`) && !text.includes(`/disc-${hidden}`) && !text.includes(`description de /cmd-${hidden}`), `niveau ${lvl} : rien de « ${hidden} » ne fuit dans la réponse`);
+    }
+  }
+  assert.equal(JSON.parse(await (await call(env, "/api/commands", { token: t.founder })).text()).commands.every((c) => ALL_LEVELS.includes(c.min_level)), true);
+});
+
+test("commandes : on ne crée ni ne réserve rien au-dessus de son niveau, et on ne touche pas à ce qu'on ne voit pas", async () => {
+  const env = levelsEnv();
+  addRow(env, "fivem", "/pour-responsable", "manager");
+  addRow(env, "fivem", "/pour-fondateur", "founder");
+  addRow(env, "fivem", "/pour-admin", "admin");
+  const ids = Object.fromEntries(env.DB.raw.prepare("SELECT id, cmd FROM commands").all().map((r) => [r.cmd, r.id]));
+  const t = await tokens(env);
+  const body = (over = {}) => cmdBody({ min_level: "admin", ...over });
+
+  // un administrateur
+  assert.equal((await send(env, "/api/commands", t.admin, "POST", body({ min_level: "manager" }))).status, 403, "pas de commande réservée au-dessus de soi");
+  assert.equal((await send(env, "/api/commands", t.admin, "POST", body({ min_level: "admin", cmd: "/ok-admin" }))).status, 201);
+  assert.equal((await send(env, "/api/commands", t.admin, "POST", body({ min_level: "mod", cmd: "/ok-mod" }))).status, 201);
+  assert.equal((await send(env, `/api/commands/${ids["/pour-responsable"]}`, t.admin, "PUT", body({ cmd: "/piraté" }))).status, 404, "modifier une commande qu'il ne voit pas");
+  assert.equal((await send(env, `/api/commands/${ids["/pour-fondateur"]}`, t.admin, "DELETE")).status, 404, "supprimer une commande qu'il ne voit pas");
+  assert.equal((await send(env, `/api/commands/${ids["/pour-admin"]}`, t.admin, "PUT", body({ cmd: "/pour-admin", min_level: "founder" }))).status, 403, "pas d'élévation vers un niveau supérieur");
+  assert.equal((await send(env, `/api/commands/${ids["/pour-admin"]}`, t.admin, "PUT", body({ cmd: "/pour-admin-2", min_level: "mod" }))).status, 200, "abaisser la visibilité est permis");
+  assert.equal(env.DB.raw.prepare("SELECT cmd FROM commands WHERE id = ?").get(ids["/pour-responsable"]).cmd, "/pour-responsable", "rien n'a changé");
+  assert.ok(env.DB.raw.prepare("SELECT id FROM commands WHERE id = ?").get(ids["/pour-fondateur"]), "rien n'a été supprimé");
+
+  // un responsable gère les niveaux jusqu'au sien, pas au-dessus
+  assert.equal((await send(env, `/api/commands/${ids["/pour-responsable"]}`, t.manager, "PUT", body({ cmd: "/pour-responsable", min_level: "manager" }))).status, 200);
+  assert.equal((await send(env, `/api/commands/${ids["/pour-fondateur"]}`, t.manager, "DELETE")).status, 404);
+  // le fondateur gère tout
+  assert.equal((await send(env, "/api/commands", t.founder, "POST", body({ min_level: "founder", cmd: "/ok-fondateur" }))).status, 201);
+  assert.equal((await send(env, `/api/commands/${ids["/pour-fondateur"]}`, t.founder, "DELETE")).status, 200);
+
+  // validation du niveau
+  assert.equal((await send(env, "/api/commands", t.founder, "POST", body({ min_level: "roi" }))).status, 400);
+  assert.equal((await send(env, "/api/commands", t.founder, "POST", { ...body(), min_level: undefined, cmd: "/defaut" })).status, 201);
+  assert.equal(env.DB.raw.prepare("SELECT min_level FROM commands WHERE cmd = '/defaut'").get().min_level, "support", "niveau par défaut : tout le staff");
+
+  // modération et support ne peuvent rien écrire
+  assert.equal((await send(env, "/api/commands", t.mod, "POST", body({ min_level: "mod" }))).status, 403);
+  assert.equal((await send(env, "/api/commands", t.support, "POST", body({ min_level: "support" }))).status, 403);
+});
+
+test("commandes : le journal d'activité ne révèle pas le nom d'une commande réservée aux niveaux supérieurs à l'administration", async () => {
+  const env = levelsEnv();
+  const t = await tokens(env);
+  const post = (token, cmd, level) => send(env, "/api/commands", token, "POST", cmdBody({ cmd, min_level: level }));
+  const { id: secretId } = await (await post(t.founder, "/commande-secrete-fondateur", "founder")).json();
+  await post(t.manager, "/commande-secrete-responsable", "manager");
+  await post(t.admin, "/commande-visible-admin", "admin");
+  await send(env, `/api/commands/${secretId}`, t.founder, "PUT", cmdBody({ cmd: "/commande-secrete-renommee", min_level: "founder" }));
+  await send(env, `/api/commands/${secretId}`, t.founder, "DELETE");
+
+  const { audit } = await (await call(env, "/api/audit", { token: t.admin })).json();
+  const text = JSON.stringify(audit);
+  assert.ok(!text.includes("secrete"), "aucune commande réservée n'apparaît, ni à l'ajout, ni à la modification, ni à la suppression");
+  assert.ok(text.includes("commande réservée aux niveaux supérieurs"));
+  assert.ok(text.includes("/commande-visible-admin"), "une commande de niveau administration reste nommée");
+});
+
+test("niveaux : responsable et fondateur gardent les droits d'administration partout ailleurs", async () => {
+  const env = levelsEnv();
+  const t = await tokens(env);
+  for (const lvl of ["manager", "founder"]) {
+    assert.equal((await send(env, "/api/penalties", t[lvl], "POST", penaltyBody({ name: `Barème ${lvl}` }))).status, 201, `${lvl} : barème`);
+    assert.equal((await send(env, "/api/org", t[lvl], "POST", memberBody({ name: `Membre ${lvl}` }))).status, 201, `${lvl} : organigramme`);
+    assert.equal((await call(env, "/api/audit", { token: t[lvl] })).status, 200, `${lvl} : journal d'activité`);
+    assert.equal((await call(env, "/api/sanctions", { token: t[lvl] })).status, 200, `${lvl} : journal des sanctions`);
+    assert.equal((await send(env, "/api/sanctions", t[lvl], "POST", sanction())).status, 201, `${lvl} : ajout au journal`);
+  }
+  // et les niveaux inférieurs restent bornés
+  assert.equal((await call(env, "/api/audit", { token: t.mod })).status, 403);
+  assert.equal((await call(env, "/api/sanctions", { token: t.support })).status, 403);
+});
+
+test("migration des niveaux : sans commentaire, conserve les commandes d'une ancienne base et leur donne le niveau par défaut", () => {
+  const migration = readFileSync(new URL("./migration-niveaux-commandes.sql", import.meta.url), "utf8");
+  assert.ok(!migration.includes("--"), "un commentaire « -- » masquerait la requête dans la console D1");
+  const db = new DatabaseSync(":memory:");
+  db.exec("CREATE TABLE commands (id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, cat TEXT NOT NULL DEFAULT 'Général', cmd TEXT NOT NULL, descr TEXT NOT NULL, example TEXT NOT NULL DEFAULT '')");
+  db.exec("INSERT INTO commands (platform, cat, cmd, descr) VALUES ('fivem', 'A', '/un', 'd1'), ('discord', 'B', '/deux', 'd2')");
+  db.exec(migration.replace(/\r?\n/g, " "));
+  const rows = db.prepare("SELECT cmd, descr, min_level FROM commands ORDER BY id").all().map((r) => ({ ...r }));
+  assert.deepEqual(rows, [{ cmd: "/un", descr: "d1", min_level: "support" }, { cmd: "/deux", descr: "d2", min_level: "support" }]);
+  // la structure obtenue est celle d'une installation neuve
+  const fresh = new DatabaseSync(":memory:");
+  fresh.exec(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
+  const cols = (d) => d.prepare("PRAGMA table_info(commands)").all().map((c) => [c.name, c.type, c.notnull, c.dflt_value]);
+  assert.deepEqual(cols(db), cols(fresh));
 });

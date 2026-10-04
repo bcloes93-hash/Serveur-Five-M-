@@ -7,7 +7,10 @@
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
   var TYPES = { avertissement: "Avertissement", expulsion: "Expulsion", ban_temp: "Ban temporaire", ban_def: "Ban définitif", note: "Note" };
-  var LEVELS = { support: "Support", mod: "Modération", admin: "Administration" };
+  var LEVELS = { support: "Support", mod: "Modération", admin: "Administration", manager: "Responsable", founder: "Fondateur" };
+  var RANK = { support: 1, mod: 2, admin: 3, manager: 4, founder: 5 };
+  // Visibilité d'une commande : à partir de quel niveau elle apparaît.
+  var VISIBLE_FROM = { support: "Tout le staff", mod: "Modération et plus", admin: "Administration et plus", manager: "Responsable et plus", founder: "Fondateur uniquement" };
   var ERRORS = {
     denied: "Connexion annulée.",
     state: "La connexion a expiré ou a été interrompue. Réessayez.",
@@ -119,7 +122,7 @@
 
     var foot = el("div", "sanction__foot");
     foot.appendChild(el("span", null, "Par " + s.staff_name + " · " + fmtDate(s.created_at)));
-    if (state.me && state.me.level === "admin") {
+    if (isAdmin()) {
       var del = el("button", "btn btn--small btn--link", "Supprimer");
       del.type = "button";
       del.addEventListener("click", function () {
@@ -181,9 +184,11 @@
   });
 
   /* ---------- Outils communs aux formulaires d'administration ---------- */
-  function isAdmin() { return !!state.me && state.me.level === "admin"; }
-  // Le journal des sanctions est réservé à la modération et à l'administration (pas au support).
-  function canJournal() { return !!state.me && (state.me.level === "admin" || state.me.level === "mod"); }
+  // « Au moins ce niveau » : chaque niveau a les droits des niveaux inférieurs.
+  function atLeast(level) { return !!state.me && (RANK[state.me.level] || 0) >= RANK[level]; }
+  function isAdmin() { return atLeast("admin"); }
+  // Le journal des sanctions est réservé à la modération et au-dessus (pas au support).
+  function canJournal() { return atLeast("mod"); }
 
   function copyText(text, done) {
     var fallback = function () {
@@ -417,6 +422,7 @@
     }
     if (isAdmin()) {
       var admin = el("div", "cmd__admin");
+      if (c.min_level && c.min_level !== "support") admin.appendChild(el("span", "cmd__level", "Visible : " + (VISIBLE_FROM[c.min_level] || c.min_level)));
       admin.appendChild(linkButton("Modifier", function () { startEditCommand(c); }));
       admin.appendChild(linkButton("Supprimer", function () {
         if (!window.confirm("Supprimer la commande « " + c.cmd + " » ?")) return;
@@ -478,6 +484,7 @@
     cForm.reset();
     cForm.elements.platform.value = cmdState.platform;
     cmdState.editing = null;
+    cForm.elements.min_level.value = "support";
     $("#c-form-title").textContent = "Ajouter une commande";
     $("#c-submit").textContent = "Ajouter";
     $("#c-cancel").hidden = true;
@@ -486,6 +493,7 @@
     cmdState.editing = c.id;
     cForm.elements.platform.value = c.platform; cForm.elements.cat.value = c.cat; cForm.elements.cmd.value = c.cmd;
     cForm.elements.descr.value = c.descr; cForm.elements.example.value = c.example;
+    cForm.elements.min_level.value = c.min_level || "support";
     $("#c-form-title").textContent = "Modifier la commande";
     $("#c-submit").textContent = "Enregistrer";
     $("#c-cancel").hidden = false;
@@ -500,7 +508,7 @@
     cStatus.className = "form__status";
     cStatus.textContent = "";
     if (!cForm.reportValidity()) return;
-    var body = { platform: cForm.elements.platform.value, cat: cForm.elements.cat.value, cmd: cForm.elements.cmd.value, descr: cForm.elements.descr.value, example: cForm.elements.example.value };
+    var body = { platform: cForm.elements.platform.value, cat: cForm.elements.cat.value, cmd: cForm.elements.cmd.value, descr: cForm.elements.descr.value, example: cForm.elements.example.value, min_level: cForm.elements.min_level.value };
     var btn = $("#c-submit");
     btn.disabled = true;
     var req = cmdState.editing ? api("PUT", "/api/commands/" + encodeURIComponent(cmdState.editing), body) : api("POST", "/api/commands", body);
@@ -675,7 +683,9 @@
     var img = $("#staff-avatar");
     if (me.avatar && /^https:\/\/cdn\.discordapp\.com\//.test(me.avatar)) { img.src = me.avatar; img.hidden = false; }
     else img.hidden = true;
-    $$("[data-admin]").forEach(function (t) { t.hidden = me.level !== "admin"; });
+    $$("[data-admin]").forEach(function (t) { t.hidden = !isAdmin(); });
+    // On ne peut réserver une commande qu'à son propre niveau ou à un niveau inférieur.
+    $$("#c-level option").forEach(function (o) { o.disabled = RANK[o.value] > RANK[me.level]; });
     // Niveau « support » : uniquement le barème (pas de journal des sanctions)
     $(".staff__sub").hidden = !canJournal();
     $("#home-sanctions-text").textContent = canJournal()

@@ -285,6 +285,17 @@
                         <textarea id="c-descr" name="descr" rows="3" required maxlength="300"></textarea>
                       </div>
                       <div class="field">
+                        <label for="c-level">Visible à partir du niveau <span class="req" aria-hidden="true">*</span></label>
+                        <select id="c-level" name="min_level" required>
+                          <option value="support">Tout le staff (Support et plus)</option>
+                          <option value="mod">Modération et plus</option>
+                          <option value="admin">Administration et plus</option>
+                          <option value="manager">Responsable et plus</option>
+                          <option value="founder">Fondateur uniquement</option>
+                        </select>
+                        <span class="field__hint">Chaque niveau ne voit que les commandes de son niveau et des niveaux inférieurs. Vous ne pouvez pas choisir un niveau supérieur au vôtre.</span>
+                      </div>
+                      <div class="field">
                         <label for="c-example">Exemple (facultatif)</label>
                         <input id="c-example" name="example" type="text" maxlength="120" autocomplete="off" placeholder="ex. /commande valeur">
                       </div>

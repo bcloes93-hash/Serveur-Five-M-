@@ -15,7 +15,9 @@
  *   DISCORD_CLIENT_SECRET   secret de l'application Discord                         (secret)
  *   DISCORD_GUILD_ID        identifiant du serveur Discord
  *   ROLES_MOD               identifiants des rôles « modération », séparés par des virgules
- *   ROLES_ADMIN             identifiants des rôles « administration » (admins, manager, fondateur…)
+ *   ROLES_ADMIN             identifiants des rôles « administration »
+ *   ROLES_MANAGER           (optionnel) identifiants des rôles « responsable » (au-dessus de l'administration)
+ *   ROLES_FOUNDER           (optionnel) identifiants des rôles « fondateur » (le niveau le plus élevé)
  *   ROLES_SUPPORT           (optionnel) identifiants des rôles « support » : lecture seule du barème, des commandes
  *                           et de l'organigramme, sans accès au journal des sanctions
  *   SESSION_SECRET          longue chaîne aléatoire (32 caractères minimum)         (secret)
@@ -29,7 +31,10 @@ const ENC = new TextEncoder();
 const DEC = new TextDecoder();
 
 const TYPES = ["avertissement", "expulsion", "ban_temp", "ban_def", "note"];
-const RANK = { support: 1, mod: 2, admin: 3 };
+// Du plus bas au plus haut. Chaque niveau a les droits des niveaux inférieurs ; l'écriture (barème, commandes,
+// organigramme) commence à « admin ». Les commandes ne sont visibles que jusqu'au niveau de la personne connectée.
+const RANK = { support: 1, mod: 2, admin: 3, manager: 4, founder: 5 };
+const LEVEL_NAMES = Object.keys(RANK);
 const JWT_HEAD = { alg: "HS256", typ: "JWT" };
 const PLATFORMS = ["discord", "fivem"];
 const KINDS = ["founder", "manager", "admin", "mod", "other"];
@@ -110,8 +115,9 @@ async function readObject(request) {
 
 function parseCommand(body) {
   const platform = String(body.platform || "");
-  const value = { platform, cat: oneLine(body.cat, 40) || "Général", cmd: oneLine(body.cmd, 80), descr: clean(body.descr, 300), example: oneLine(body.example, 120) };
+  const value = { platform, cat: oneLine(body.cat, 40) || "Général", cmd: oneLine(body.cmd, 80), descr: clean(body.descr, 300), example: oneLine(body.example, 120), min_level: String(body.min_level || "support") };
   if (!PLATFORMS.includes(platform)) return { error: "Type de commande invalide (Discord ou FiveM)." };
+  if (!LEVEL_NAMES.includes(value.min_level)) return { error: "Niveau de visibilité invalide." };
   if (!value.cmd) return { error: "La commande est obligatoire." };
   if (!value.descr) return { error: "La description est obligatoire." };
   return { value };
@@ -181,7 +187,7 @@ function missingConfig(env) {
   const missing = [];
   for (const k of ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_GUILD_ID", "PANEL_URL", "ALLOWED_ORIGIN"]) if (!env[k]) missing.push(k);
   if (String(env.SESSION_SECRET || "").length < 32) missing.push("SESSION_SECRET (32 caractères minimum)");
-  if (!ids(env.ROLES_MOD).length && !ids(env.ROLES_ADMIN).length && !ids(env.ROLES_SUPPORT).length) missing.push("ROLES_MOD ou ROLES_ADMIN");
+  if (!["ROLES_SUPPORT", "ROLES_MOD", "ROLES_ADMIN", "ROLES_MANAGER", "ROLES_FOUNDER"].some((k) => ids(env[k]).length)) missing.push("ROLES_MOD ou ROLES_ADMIN");
   if (!env.DB) missing.push("DB (liaison D1)");
   return missing;
 }
@@ -255,7 +261,8 @@ async function callback(request, env, url) {
   const roles = Array.isArray(member.roles) ? member.roles.map(String) : [];
   // Le niveau le plus élevé l'emporte : administration, puis modération, puis support.
   const has = (list) => roles.some((r) => ids(list).includes(r));
-  const level = has(env.ROLES_ADMIN) ? "admin" : has(env.ROLES_MOD) ? "mod" : has(env.ROLES_SUPPORT) ? "support" : null;
+  const level = has(env.ROLES_FOUNDER) ? "founder" : has(env.ROLES_MANAGER) ? "manager" : has(env.ROLES_ADMIN) ? "admin"
+    : has(env.ROLES_MOD) ? "mod" : has(env.ROLES_SUPPORT) ? "support" : null;
   if (!level) return fail("not_staff");
 
   const name = clean(member.nick || user.global_name || user.username || "Staff", 40) || "Staff";
@@ -265,7 +272,7 @@ async function callback(request, env, url) {
   const token = await signToken({ sub: String(user.id), name, avatar, lvl: level, iat: now, exp: now + hours * 3600 }, env.SESSION_SECRET);
 
   try {
-    await audit(env, { sub: String(user.id), name }, "connexion", { admin: "administration", mod: "modération", support: "support" }[level]);
+    await audit(env, { sub: String(user.id), name }, "connexion", { founder: "fondateur", manager: "responsable", admin: "administration", mod: "modération", support: "support" }[level]);
   } catch { return fail("server"); }   // base absente ou schema.sql non exécuté
   return redirect(`${env.PANEL_URL}#token=${token}`, CLEAR_COOKIE);
 }
@@ -363,11 +370,16 @@ async function api(request, env, url) {
       actions: { add: "barème : cas ajouté", edit: "barème : cas modifié", del: "barème : cas supprimé" },
     },
     commands: {
-      list: "SELECT id, platform, cat, cmd, descr, example FROM commands ORDER BY platform, cat COLLATE NOCASE, id",
-      parse: parseCommand, label: "commande", label_of: (v) => v.cmd,
-      insert: ["INSERT INTO commands (platform, cat, cmd, descr, example) VALUES (?, ?, ?, ?, ?)", (v) => [v.platform, v.cat, v.cmd, v.descr, v.example]],
-      update: ["UPDATE commands SET platform = ?, cat = ?, cmd = ?, descr = ?, example = ? WHERE id = ?", (v, id) => [v.platform, v.cat, v.cmd, v.descr, v.example, id]],
-      name: "SELECT cmd AS label FROM commands WHERE id = ?", remove: "DELETE FROM commands WHERE id = ?",
+      // Chaque commande a un niveau minimal (min_level) : on ne reçoit que celles de son niveau et des niveaux inférieurs.
+      scoped: true,
+      list: "SELECT id, platform, cat, cmd, descr, example, min_level FROM commands WHERE min_level IN ({levels}) ORDER BY platform, cat COLLATE NOCASE, id",
+      parse: parseCommand, label: "commande",
+      // Dans le journal d'activité (lisible par l'administration), le nom d'une commande réservée aux niveaux supérieurs est masqué.
+      label_of: (v) => (RANK[v.min_level] > RANK.admin ? "commande réservée aux niveaux supérieurs" : v.cmd),
+      labelRow: (row) => (RANK[row.lvl] > RANK.admin ? "commande réservée aux niveaux supérieurs" : row.label),
+      insert: ["INSERT INTO commands (platform, cat, cmd, descr, example, min_level) VALUES (?, ?, ?, ?, ?, ?)", (v) => [v.platform, v.cat, v.cmd, v.descr, v.example, v.min_level]],
+      update: ["UPDATE commands SET platform = ?, cat = ?, cmd = ?, descr = ?, example = ?, min_level = ? WHERE id = ?", (v, id) => [v.platform, v.cat, v.cmd, v.descr, v.example, v.min_level, id]],
+      name: "SELECT cmd AS label, min_level AS lvl FROM commands WHERE id = ?", remove: "DELETE FROM commands WHERE id = ?",
       actions: { add: "commande ajoutée", edit: "commande modifiée", del: "commande supprimée" },
     },
     org: {
@@ -385,7 +397,13 @@ async function api(request, env, url) {
   const res = RESOURCES[(listMatch || itemMatch || [])[1]];
 
   if (res && listMatch && request.method === "GET") {
-    const { results } = await env.DB.prepare(res.list).all();
+    let sql = res.list, args = [];
+    if (res.scoped) {
+      args = LEVEL_NAMES.filter((l) => RANK[l] <= RANK[user.lvl]);
+      sql = sql.replace("{levels}", args.map(() => "?").join(", "));
+    }
+    const stmt = env.DB.prepare(sql);
+    const { results } = await (args.length ? stmt.bind(...args) : stmt).all();
     return reply({ [listMatch[1]]: res.shape ? res.shape(results) : results });
   }
 
@@ -395,9 +413,9 @@ async function api(request, env, url) {
     if (request.method === "DELETE") {
       const id = Number(itemMatch[2]);
       const row = await env.DB.prepare(res.name).bind(id).first();
-      if (!row) return reply({ error: "Élément introuvable." }, 404);
+      if (!row || (res.scoped && RANK[row.lvl] > RANK[user.lvl])) return reply({ error: "Élément introuvable." }, 404);
       await env.DB.prepare(res.remove).bind(id).run();
-      await audit(env, user, res.actions.del, row.label);
+      await audit(env, user, res.actions.del, res.labelRow ? res.labelRow(row) : row.label);
       return reply({ ok: true });
     }
 
@@ -405,6 +423,9 @@ async function api(request, env, url) {
     if (!input.body) return reply({ error: input.error }, input.status);
     const parsed = res.parse(input.body);
     if (parsed.error) return reply({ error: parsed.error }, 400);
+    if (res.scoped && RANK[parsed.value.min_level] > RANK[user.lvl]) {
+      return reply({ error: "Vous ne pouvez pas réserver une commande à un niveau supérieur au vôtre." }, 403);
+    }
 
     if (request.method === "POST") {
       const out = await env.DB.prepare(res.insert[0]).bind(...res.insert[1](parsed.value)).run();
@@ -413,6 +434,10 @@ async function api(request, env, url) {
     }
 
     const id = Number(itemMatch[2]);
+    if (res.scoped) {
+      const current = await env.DB.prepare(res.name).bind(id).first();
+      if (!current || RANK[current.lvl] > RANK[user.lvl]) return reply({ error: "Élément introuvable." }, 404);
+    }
     const out = await env.DB.prepare(res.update[0]).bind(...res.update[1](parsed.value, id)).run();
     if (!out.meta || !out.meta.changes) return reply({ error: "Élément introuvable." }, 404);
     await audit(env, user, res.actions.edit, res.label_of(parsed.value));

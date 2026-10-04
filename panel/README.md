@@ -15,14 +15,20 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
 
 ## Ce que fait le panel
 - **Connexion Discord** réservée aux membres du serveur ayant un rôle staff.
-- **Trois niveaux**, selon les rôles Discord :
+- **Cinq niveaux**, selon les rôles Discord (du plus bas au plus haut) :
   - *Support* (facultatif) : lecture seule du barème, des commandes et de l'organigramme. **Pas d'accès** au journal
     des sanctions, qui contient des données sur des joueurs.
   - *Modération* : en plus, consulte le journal des sanctions et y ajoute des sanctions.
   - *Administration* : en plus, supprime des sanctions, modifie le barème, les commandes et l'organigramme, et consulte
     le journal d'activité.
+  - *Responsable* (facultatif) et *Fondateur* (facultatif) : mêmes droits que l'administration, avec une **visibilité
+    plus large des commandes** (voir ci-dessous).
 
   Si une personne cumule plusieurs rôles, le niveau le plus élevé l'emporte. Un rôle absent de toutes les listes n'a aucun accès.
+- **Commandes visibles selon le niveau** : chaque commande a un niveau minimal. Chaque personne ne reçoit que les commandes
+  de son niveau et des niveaux inférieurs : le serveur ne les envoie même pas aux autres (ce n'est pas un simple masquage
+  à l'écran). Un administrateur ne peut ni créer, ni modifier, ni supprimer une commande réservée à un niveau supérieur
+  au sien, et le journal d'activité masque leur nom.
 - **Barème des sanctions** (onglet *Sanctions → Barème*) : pour chaque infraction (RDM, troll, insultes…), les paliers à
   appliquer selon les récidives, par exemple avertissement, expulsion, ban 3 jours, ban définitif. Il se lit d'un coup
   d'œil, se recherche, et un bouton « Noter dans le journal » reprend l'infraction dans le journal. Visible par tout le
@@ -81,7 +87,7 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 | --- | --- |
 | `sanctions` | Journal : joueur, identifiant facultatif, type (`avertissement`, `expulsion`, `ban_temp`, `ban_def`, `note`), motif, durée, auteur, date ; suppression « douce » (`deleted_at`) |
 | `audit` | Journal d'activité : connexions, ajouts, modifications et suppressions |
-| `commands` | Commandes Discord / FiveM (`platform`, catégorie, commande, description, exemple) |
+| `commands` | Commandes Discord / FiveM (`platform`, catégorie, commande, description, exemple, `min_level` = niveau minimal pour la voir) |
 | `org` | Organigramme : nom, rôle affiché, groupe (`grp`), niveau (`tier`, 1 = haut), couleur (`kind`), ordre |
 | `penalties` | Barème : catégorie, infraction (`name`), paliers au format JSON (`steps`), précisions (`notes`) |
 
@@ -98,7 +104,9 @@ Dans le Worker → **Settings** :
 | `DISCORD_CLIENT_SECRET` | **Secret** | le Client Secret de l'étape 1 |
 | `DISCORD_GUILD_ID` | Texte | l'ID du serveur |
 | `ROLES_MOD` | Texte | l'ID du rôle Modérateur (plusieurs : séparés par des virgules) |
-| `ROLES_ADMIN` | Texte | les ID des rôles Admin, Manager, Fondateur, séparés par des virgules |
+| `ROLES_ADMIN` | Texte | l'ID du rôle Admin (plusieurs : séparés par des virgules) |
+| `ROLES_MANAGER` | Texte (facultatif) | l'ID du rôle Responsable |
+| `ROLES_FOUNDER` | Texte (facultatif) | l'ID du rôle Fondateur |
 | `ROLES_SUPPORT` | Texte (facultatif) | l'ID du rôle Support (lecture seule des références, sans le journal des sanctions) |
 | `SESSION_SECRET` | **Secret** | une longue chaîne aléatoire, 48 caractères ou plus (générateur de mot de passe de votre navigateur) |
 | `PANEL_URL` | Texte | `https://bcloes93-hash.github.io/Serveur-Five-M-/staff.html` |
@@ -127,6 +135,17 @@ Une infraction avec un seul palier s'affiche « Immédiat » (ex. triche → ban
 Une fois connecté avec un compte **Administration** : onglet **Commandes** → formulaire « Ajouter une commande »
 (type Discord ou FiveM, catégorie, commande, description, exemple). Chaque ligne a ses boutons *Modifier* et *Supprimer*.
 Seule l'administration peut modifier ; la modération consulte et copie.
+
+## Mettre à jour une base déjà installée (niveaux des commandes)
+Si la base a été créée **avant** l'ajout des niveaux de visibilité, une seule fois, dans la console D1 :
+
+```sql
+ALTER TABLE commands ADD COLUMN min_level TEXT NOT NULL DEFAULT 'support';
+```
+
+([`migration-niveaux-commandes.sql`](./migration-niveaux-commandes.sql)). Toutes les commandes existantes restent alors
+visibles par tout le staff, jusqu'à ce qu'un niveau minimal leur soit attribué (depuis le panel, bouton *Modifier*). Ordre
+conseillé : d'abord la base, ensuite le code du relais (`worker.mjs`), puis les réglages `ROLES_MANAGER` et `ROLES_FOUNDER`.
 
 ## À savoir
 - **Données privées** : les commandes et l'organigramme du panel ne sont lisibles qu'après connexion avec un rôle staff.

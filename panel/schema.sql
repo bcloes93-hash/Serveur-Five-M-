@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS commands (
   cat         TEXT NOT NULL DEFAULT 'Général',
   cmd         TEXT NOT NULL,
   descr       TEXT NOT NULL,
-  example     TEXT NOT NULL DEFAULT ''
+  example     TEXT NOT NULL DEFAULT '',
+  min_level   TEXT NOT NULL DEFAULT 'support'
 );
 CREATE INDEX IF NOT EXISTS idx_commands_platform ON commands (platform);
 CREATE TABLE IF NOT EXISTS org (
