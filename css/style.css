@@ -339,6 +339,9 @@ a:hover { color: #7be6ff; }
 }
 .rule__callout > * { margin: 0; }
 .rule__body strong { color: var(--text); }
+.chapter__intro strong { color: var(--text); }
+.rule__emph { color: var(--text); font-weight: 700; }
+.rule__callout .rule__emph { font-size: 1.05em; }
 /* Règlement : la liste des chapitres à gauche, le chapitre choisi à droite */
 .regl { padding: 32px 0 clamp(64px, 9vw, 110px); }
 .regl__layout { display: grid; grid-template-columns: minmax(250px, 310px) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: start; }
