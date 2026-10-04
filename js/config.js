@@ -16,7 +16,7 @@ window.SITE_CONFIG = {
 
   // Adresse du panel staff (relais Cloudflare « panel », voir panel/README.md).
   // Laisser vide tant que le panel n'est pas installé : la page staff indique alors qu'il n'est pas activé.
-  staffApi: "",
+  staffApi: "https://santos-legacy-staff.b-cloes93.workers.dev",
 
   // Formulaire externe (optionnel) : si une adresse est renseignée, l'onglet
   // affiche un bouton qui ouvre ce formulaire (Google Forms, Tally…) à la place
