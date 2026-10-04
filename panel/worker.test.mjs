@@ -1254,3 +1254,40 @@ test("règlement : le texte saisi reste du texte (rien n'est interprété) et ch
   const log = env.DB.raw.prepare("SELECT action, staff_name FROM audit WHERE action LIKE 'règlement%' ORDER BY id").all().map((a) => a.action);
   assert.ok(log.includes("règlement : règle ajoutée") && log.includes("règlement : règle supprimée") && log.includes("règlement : import terminé"), log.join(" | "));
 });
+
+test("règlement : le barème a aussi des sections libres (facteurs, récidive…), validées et servies au site", async () => {
+  const env = rulesEnv();
+  const t = await tokens(env);
+  await importRules(env, t.founder);
+  assert.deepEqual((await getRules(env, t.manager)).bareme.sections, [], "aucune section au départ");
+  const sections = [
+    { title: "  Facteurs   aggravants ", body: "Une sanction peut être augmentée :\n* récidive\n* mensonge", kind: "up" },
+    { title: "Facteurs atténuants", body: "* erreur involontaire", kind: "down" },
+    { title: "Récidive", body: "Texte." },
+    { title: "Principe fondamental", body: "Un principe.", kind: "key" },
+  ];
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { sections })).status, 200);
+  const staff = (await getRules(env, t.manager)).bareme.sections;
+  assert.deepEqual(staff.map((s) => [s.title, s.kind]), [["Facteurs aggravants", "up"], ["Facteurs atténuants", "down"], ["Récidive", "info"], ["Principe fondamental", "key"]]);
+  assert.equal(staff[0].body, "Une sanction peut être augmentée :\n* récidive\n* mensonge");
+  assert.deepEqual((await getPublic(env)).data.bareme.sections, staff, "servies telles quelles au site, dans l'ordre");
+  // un envoi sans « sections » ne les efface pas ; un envoi vide les retire
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { intro: "Autre intro." })).status, 200);
+  assert.equal((await getRules(env, t.manager)).bareme.sections.length, 4);
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { sections: [] })).status, 200);
+  assert.deepEqual((await getRules(env, t.manager)).bareme.sections, []);
+  // validations
+  for (const [body, label] of [[{ sections: "non" }, "pas une liste"], [{ sections: [{ title: "  ", body: "x" }] }, "titre vide"], [{ sections: [{ title: "A", kind: "rouge" }] }, "type inconnu"], [{ sections: Array.from({ length: 13 }, (_, i) => ({ title: "S" + i })) }, "trop de sections"], [{ sections: [null] }, "élément invalide"]]) {
+    assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", body)).status, 400, label);
+  }
+  assert.deepEqual((await getRules(env, t.manager)).bareme.sections, [], "un refus ne change rien");
+  const long = await send(env, "/api/rules-bareme", t.manager, "PUT", { sections: [{ title: "T".repeat(300), body: "b".repeat(5000) }], intro: "i".repeat(3000) });
+  assert.equal(long.status, 200);
+  const b = (await getRules(env, t.manager)).bareme;
+  assert.equal(b.sections[0].title.length, 100); assert.equal(b.sections[0].body.length, 3000); assert.equal(b.intro.length, 1500);
+  // droits : comme le reste du règlement
+  assert.equal((await send(env, "/api/rules-bareme", t.admin, "PUT", { sections: [] })).status, 403);
+  // texte hostile : jamais interprété
+  await send(env, "/api/rules-bareme", t.manager, "PUT", { sections: [{ title: "<img src=x onerror=alert(1)>", body: "<script>1</script>" }] });
+  assert.equal((await getPublic(env)).data.bareme.sections[0].title, "<img src=x onerror=alert(1)>");
+});

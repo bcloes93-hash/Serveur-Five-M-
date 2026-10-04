@@ -3,7 +3,7 @@
  * Le texte est saisi simplement, une ligne = un paragraphe :
  *   * ou -        puce                          1. 2. 3.    liste numérotée
  *   « …phrase… »  citation                      a → b → c   enchaînement
- *   Interdit · Autorisé · Exemple…  intertitre  ### Titre   encadré (tout ce qui suit y est inclus)
+ *   Interdit · Autorisé · Exemple · Sanctions possibles…  intertitre  ### Titre   encadré (tout ce qui suit y est inclus)
  *   **gras**      mise en valeur                ligne entière en **gras** = phrase mise en avant
  * Rien n'est jamais interprété comme du HTML : le texte est inséré avec createTextNode.
  */
@@ -12,7 +12,7 @@
 
   var NBSP = " ";
   // Intertitres reconnus (ligne seule) : style d'affichage. « key » ouvre un encadré.
-  var LABELS = { "Interdit": "no", "Exemples interdits": "no", "Autorisé": "yes", "Exemple": "ex", "Exemples": "ex", "Règle essentielle": "key", "Principe fondamental des scènes": "key" };
+  var LABELS = { "Interdit": "no", "Exemples interdits": "no", "Autorisé": "yes", "Exemple": "ex", "Exemples": "ex", "Sanctions possibles": "sanc", "Règle essentielle": "key", "Principe fondamental des scènes": "key" };
 
   // Typographie française : espace insécable avant ; : ! ? » et après «
   function typo(t) {

@@ -461,16 +461,27 @@
                   <div class="panelbox">
                     <h2 class="tabpanel__title">Barème des sanctions (indicatif)</h2>
                     <p class="tabpanel__lead">Section séparée des règles, affichée sur la page Règlement. Quatre niveaux, sans lien automatique avec une règle précise : la décision finale dépend toujours du contexte. Les textes sont facultatifs et se mettent en forme comme une règle.</p>
+                    <p class="org__warn" id="rb-warn" role="alert" hidden><strong>Le relais du panel n'est pas à jour.</strong> Les sections du barème ne seraient pas enregistrées. Dans Cloudflare, ouvrez <em>santos-legacy-staff</em> → <em>Edit code</em>, collez la dernière version de <code>panel/worker.mjs</code>, cliquez sur <em>Deploy</em>, puis rechargez cette page.</p>
+                    <div class="rl__import" id="rb-origin" hidden>
+                      <p id="rb-origin-text"></p>
+                      <button class="btn btn--primary" type="button" id="rb-origin-btn">Ajouter le barème d'origine</button>
+                    </div>
                     <form class="form" id="rl-bareme-form" novalidate>
                       <div class="form__body">
                         <div class="field">
                           <label for="rb-intro">Introduction</label>
-                          <textarea id="rb-intro" name="intro" rows="2" maxlength="800"></textarea>
+                          <textarea id="rb-intro" name="intro" rows="7" maxlength="1500"></textarea>
                         </div>
-                        <div class="field"><label for="rb-mineure">Mineure</label><textarea id="rb-mineure" name="mineure" rows="4" maxlength="2500"></textarea></div>
-                        <div class="field"><label for="rb-moderee">Modérée</label><textarea id="rb-moderee" name="moderee" rows="4" maxlength="2500"></textarea></div>
-                        <div class="field"><label for="rb-grave">Grave</label><textarea id="rb-grave" name="grave" rows="4" maxlength="2500"></textarea></div>
-                        <div class="field"><label for="rb-critique">Critique</label><textarea id="rb-critique" name="critique" rows="4" maxlength="2500"></textarea></div>
+                        <div class="field"><label for="rb-mineure">Mineure</label><textarea id="rb-mineure" name="mineure" rows="9" maxlength="2500"></textarea></div>
+                        <div class="field"><label for="rb-moderee">Modérée</label><textarea id="rb-moderee" name="moderee" rows="9" maxlength="2500"></textarea></div>
+                        <div class="field"><label for="rb-grave">Grave</label><textarea id="rb-grave" name="grave" rows="9" maxlength="2500"></textarea></div>
+                        <div class="field"><label for="rb-critique">Critique</label><textarea id="rb-critique" name="critique" rows="9" maxlength="2500"></textarea></div>
+                        <div class="rl__secs">
+                          <h3 class="rl__h">Sections supplémentaires</h3>
+                          <p class="field__hint">Facteurs aggravants, facteurs atténuants, récidive, principe fondamental… Elles s'affichent sous les quatre niveaux, dans cet ordre. Même mise en forme que les règles (<code>* </code> puce, <code>**gras**</code>, <code>Exemples</code> et <code>Sanctions possibles</code> seuls sur une ligne = intertitres).</p>
+                          <div class="rl__seclist" id="rb-sections"></div>
+                          <button class="btn btn--ghost btn--small" type="button" id="rb-add-section">+ Ajouter une section</button>
+                        </div>
                       </div>
                       <div class="form__actions">
                         <button class="btn btn--primary" type="submit" id="rb-submit">Enregistrer le barème</button>

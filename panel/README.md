@@ -51,8 +51,13 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
     `« phrase »` citation, `Interdit` / `Autorisé` / `Exemple` seuls sur une ligne = intertitres colorés, `### Titre` =
     encadré, `a → b → c` = enchaînement. Rien n'est jamais interprété comme du HTML.
   - **Barème des sanctions (indicatif)** : onglet *Règlement → Barème indicatif*. Quatre niveaux fixes (Mineure, Modérée,
-    Grave, Critique), une introduction et un texte facultatif par niveau. C'est une section **séparée** : aucune règle n'est
-    reliée à un niveau ni à une sanction. Il est distinct du barème privé du staff (*Sanctions → Barème*).
+    Grave, Critique) avec leur texte (exemples, sanctions possibles…), une introduction, et jusqu'à 12 **sections libres**
+    sous les niveaux (facteurs aggravants en rouge, atténuants en vert, récidive, sanctions complémentaires, principe
+    fondamental en encadré) : titre, type, texte, ordre (↑ ↓), ajout et suppression. C'est une section **séparée** :
+    aucune règle n'est reliée à un niveau ni à une sanction. Il est distinct du barème privé du staff (*Sanctions → Barème*).
+    Il se retrouve par la recherche du site et par des adresses (`reglement.html#bareme-grave`, `#bareme-s2`). Si votre
+    barème est vide alors que `data/reglement.json` en contient un, un encadré propose de **l'ajouter d'un clic** (rien
+    n'est remplacé) ; l'import initial le reprend aussi.
   - La date « Dernière mise à jour » du site ne change que lorsqu'un changement touche du contenu **publié**.
   - **Chapitres d'origine absents** : si `data/reglement.json` contient un chapitre que votre règlement n'a pas (par
     exemple la *Charte Whitelist* ajoutée après l'import), un encadré propose de **l'ajouter sans toucher au reste** (rien

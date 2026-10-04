@@ -1262,8 +1262,10 @@
   function refreshMissing() {
     var box = $("#rl-missing-box");
     box.hidden = true;
+    $("#rb-origin").hidden = true;
     if (!rl.initialized || rl.missing || !canRules()) return;
     loadOrigin().then(function () {
+      refreshBaremeOrigin();
       var list = missingChapters();
       if (!list.length) return;
       var names = list.map(function (m) { return "« " + m.chapter.title + " » (" + m.chapter.rules.length + (m.chapter.rules.length > 1 ? " règles" : " règle") + ")"; }).join(", ");
@@ -1448,7 +1450,7 @@
     fetch("data/reglement.json", { cache: "no-store" }).then(function (r) { if (!r.ok) throw { message: "Le fichier du règlement d'origine est introuvable sur le site." }; return r.json(); }).then(function (data) {
       var chapters = data.chapters || [], i = 0;
       return api("POST", "/api/rules/import", { mode: "reset", confirm: true }).then(function next() {
-        if (i >= chapters.length) return api("POST", "/api/rules/import", { mode: "done" });
+        if (i >= chapters.length) return (data.bareme ? api("PUT", "/api/rules-bareme", baremePayload(data.bareme)) : Promise.resolve()).then(function () { return api("POST", "/api/rules/import", { mode: "done" }); });
         var c = chapters[i];
         rlSay("Import en cours : chapitre " + (i + 1) + " sur " + chapters.length + "…", false);
         return api("POST", "/api/rules/import", { mode: "chapter", chapter: { title: c.title, intro: c.intro, numbered: c.numbered !== false }, rules: c.rules }).then(function () { i++; return next(); });
@@ -1463,16 +1465,90 @@
 
   /* --- barème indicatif (quatre niveaux) --- */
   var bForm = $("#rl-bareme-form"), bStatus = $("#rb-status");
+  var KINDS = [["info", "Standard"], ["up", "Aggravant (rouge)"], ["down", "Atténuant (vert)"], ["key", "Principe (encadré)"]];
+  var secBox = $("#rb-sections");
+  function syncSecButtons() {
+    var rows = $$(".rl__sec", secBox);
+    rows.forEach(function (r, i) { $(".rl__secup", r).disabled = i === 0; $(".rl__secdown", r).disabled = i === rows.length - 1; });
+    $("#rb-add-section").disabled = rows.length >= 12;
+  }
+  function secRow(sec) {
+    var box = el("div", "rl__sec");
+    var head = el("div", "rl__sechead");
+    var title = el("input", "rl__sectitle");
+    title.type = "text"; title.maxLength = 100; title.required = true; title.placeholder = "Titre de la section"; title.value = sec.title || ""; title.setAttribute("aria-label", "Titre de la section");
+    var kind = el("select", "rl__seckind");
+    kind.setAttribute("aria-label", "Type de section");
+    KINDS.forEach(function (k) { kind.appendChild(new Option(k[1], k[0])); });
+    kind.value = sec.kind || "info";
+    head.appendChild(title); head.appendChild(kind);
+    box.appendChild(head);
+    var body = document.createElement("textarea");
+    body.className = "rl__secbody"; body.rows = 7; body.maxLength = 3000; body.value = sec.body || ""; body.setAttribute("aria-label", "Texte de la section");
+    box.appendChild(body);
+    var acts = el("div", "rl__secacts");
+    var up = actBtn("↑ Monter", function () { if (box.previousElementSibling) secBox.insertBefore(box, box.previousElementSibling); syncSecButtons(); }, "rl__secup");
+    var down = actBtn("↓ Descendre", function () { if (box.nextElementSibling) secBox.insertBefore(box.nextElementSibling, box); syncSecButtons(); }, "rl__secdown");
+    var del = actBtn("Supprimer la section", function () { box.parentNode.removeChild(box); syncSecButtons(); }, "btn--danger");
+    acts.appendChild(up); acts.appendChild(down); acts.appendChild(del);
+    box.appendChild(acts);
+    return box;
+  }
+  function renderSections(list) {
+    clear(secBox);
+    (list || []).forEach(function (sec) { secBox.appendChild(secRow(sec)); });
+    syncSecButtons();
+  }
+  function collectSections() {
+    return $$(".rl__sec", secBox).map(function (r) { return { title: $(".rl__sectitle", r).value, kind: $(".rl__seckind", r).value, body: $(".rl__secbody", r).value }; });
+  }
+  $("#rb-add-section").addEventListener("click", function () {
+    var row = secRow({ title: "", kind: "info", body: "" });
+    secBox.appendChild(row); syncSecButtons();
+    $(".rl__sectitle", row).focus();
+  });
   function fillBareme() {
     if (!rl.bareme) return;
+    // Un relais pas à jour ne connaît pas les sections : on le dit et on bloque l'enregistrement (il les ignorerait sans rien signaler)
+    var stale = !Array.isArray(rl.bareme.sections);
+    $("#rb-warn").hidden = !stale;
+    $("#rb-submit").disabled = stale; $("#rb-origin-btn").disabled = stale;
     bForm.elements.intro.value = rl.bareme.intro || "";
     (rl.bareme.levels || []).forEach(function (l) { if (bForm.elements[l.key]) bForm.elements[l.key].value = l.body || ""; });
+    renderSections(rl.bareme.sections);
   }
+  // Charge d'un coup un barème complet (le barème d'origine) : même format que le formulaire
+  function baremePayload(b) {
+    var levels = {};
+    (b.levels || []).forEach(function (l) { levels[l.key] = l.body || ""; });
+    return { intro: b.intro || "", levels: levels, sections: (b.sections || []).map(function (x) { return { title: x.title, kind: x.kind || "info", body: x.body || "" }; }) };
+  }
+  function baremeEmpty() {
+    return !rl.bareme || (!(rl.bareme.sections || []).length && (rl.bareme.levels || []).every(function (l) { return !l.body; }));
+  }
+  function refreshBaremeOrigin() {
+    var box = $("#rb-origin");
+    box.hidden = true;
+    if (!origin || !origin.bareme || !baremeEmpty() || !Array.isArray(rl.bareme.sections)) return;
+    var has = (origin.bareme.levels || []).some(function (l) { return l.body; }) || (origin.bareme.sections || []).length;
+    if (!has) return;
+    $("#rb-origin-text").textContent = "Votre barème est vide, alors que la version d'origine contient un barème rédigé : 4 niveaux (Mineure, Modérée, Grave, Critique) et " + (origin.bareme.sections || []).length + " sections (facteurs aggravants et atténuants, récidive…). Vous pouvez l'ajouter d'un clic, puis le modifier.";
+    box.hidden = false;
+  }
+  $("#rb-origin-btn").addEventListener("click", function () {
+    if (!window.confirm("Ajouter le barème d'origine ? Votre barème est vide : rien n'est remplacé.")) return;
+    var btn = $("#rb-origin-btn"); btn.disabled = true;
+    bStatus.className = "form__status"; bStatus.textContent = "";
+    api("PUT", "/api/rules-bareme", baremePayload(origin.bareme)).then(function () {
+      return loadRules().then(function () { bStatus.className = "form__status form__status--ok"; bStatus.textContent = "Barème d'origine ajouté."; });
+    }, function (err) { if (err.status !== 401) bStatus.textContent = err.message || "Ajout impossible."; }).then(function () { btn.disabled = false; });
+  });
   bForm.addEventListener("submit", function (e) {
     e.preventDefault();
     bStatus.className = "form__status"; bStatus.textContent = "";
+    if (!bForm.reportValidity()) return;
     var f = bForm.elements, btn = $("#rb-submit"); btn.disabled = true;
-    api("PUT", "/api/rules-bareme", { intro: f.intro.value, levels: { mineure: f.mineure.value, moderee: f.moderee.value, grave: f.grave.value, critique: f.critique.value } }).then(function () {
+    api("PUT", "/api/rules-bareme", { intro: f.intro.value, levels: { mineure: f.mineure.value, moderee: f.moderee.value, grave: f.grave.value, critique: f.critique.value }, sections: collectSections() }).then(function () {
       return loadRules().then(function () { bStatus.className = "form__status form__status--ok"; bStatus.textContent = "Barème enregistré."; });
     }, function (err) { if (err.status !== 401) bStatus.textContent = err.message || "Enregistrement impossible."; }).then(function () { btn.disabled = false; });
   });

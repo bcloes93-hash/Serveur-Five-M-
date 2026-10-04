@@ -71,6 +71,9 @@ const MAX_BODY_BYTES = 5000;
 const RULES_LEVEL = "manager";
 const SANCTION_LEVELS = [["mineure", "Mineure"], ["moderee", "Modérée"], ["grave", "Grave"], ["critique", "Critique"]];
 const BAREME_INTRO = "Le barème reste indicatif et la décision finale dépend toujours du contexte.";
+// Sections libres du barème (facteurs aggravants, récidive…) : « info » = neutre, « up » = aggravant, « down » = atténuant, « key » = principe (encadré).
+const BAREME_KINDS = ["info", "up", "down", "key"];
+const MAX_BAREME_SECTIONS = 12;
 const MAX_RULES_BODY_BYTES = 30000;
 const MAX_IMPORT_BYTES = 200000;
 const DISCORD = "https://discord.com/api/v10";
@@ -398,6 +401,16 @@ async function runBatch(env, statements) {
   for (let i = 0; i < statements.length; i += 80) await env.DB.batch(statements.slice(i, i + 80));
 }
 
+/** Relit les sections du barème stockées (JSON) en écartant tout ce qui ne serait pas valide. */
+function readSections(json) {
+  try {
+    const list = JSON.parse(json || "[]");
+    return (Array.isArray(list) ? list : []).slice(0, MAX_BAREME_SECTIONS).filter((x) => x && typeof x === "object")
+      .map((x) => ({ title: oneLine(x.title, 100), body: multiLine(x.body, 3000), kind: BAREME_KINDS.includes(x.kind) ? x.kind : "info" }))
+      .filter((x) => x.title);
+  } catch { return []; }
+}
+
 /** Lit tout le règlement. `drafts` : true pour le panel (brouillons compris), false pour le site (publié seulement). */
 async function readRules(env, drafts) {
   const where = drafts ? "" : " WHERE published = 1";
@@ -407,7 +420,8 @@ async function readRules(env, drafts) {
   const initialized = (await metaGet(env, "initialized")) === "1";
   const updated = (await metaGet(env, "updated_at")) || null;
   const intro = (await metaGet(env, "bareme_intro")) || BAREME_INTRO;
-  const bareme = { intro, levels: SANCTION_LEVELS.map(([key, label]) => ({ key, label, body: levels[key] || "" })) };
+  const sections = readSections(await metaGet(env, "bareme_sections"));
+  const bareme = { intro, levels: SANCTION_LEVELS.map(([key, label]) => ({ key, label, body: levels[key] || "" })), sections };
   return { initialized, updated, chapters, rules, bareme };
 }
 
@@ -611,7 +625,19 @@ async function rulesApi(request, env, url, user, reply) {
     for (const k of Object.keys(levels)) {
       stmts.push(env.DB.prepare("INSERT INTO rule_levels (level, body, updated_at) VALUES (?, ?, ?) ON CONFLICT(level) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at").bind(k, multiLine(levels[k], 2500), stamp));
     }
-    if ("intro" in b) stmts.push(env.DB.prepare("INSERT INTO rules_meta (k, v) VALUES ('bareme_intro', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(multiLine(b.intro, 800) || BAREME_INTRO));
+    if ("intro" in b) stmts.push(env.DB.prepare("INSERT INTO rules_meta (k, v) VALUES ('bareme_intro', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(multiLine(b.intro, 1500) || BAREME_INTRO));
+    if ("sections" in b) {
+      if (!Array.isArray(b.sections) || b.sections.length > MAX_BAREME_SECTIONS) return reply({ error: `Maximum ${MAX_BAREME_SECTIONS} sections.` }, 400);
+      const list = [];
+      for (const [i, raw] of b.sections.entries()) {
+        const x = raw && typeof raw === "object" ? raw : {};
+        const kind = x.kind === undefined ? "info" : String(x.kind);
+        if (!oneLine(x.title, 100)) return reply({ error: `Section ${i + 1} : le titre est obligatoire.` }, 400);
+        if (!BAREME_KINDS.includes(kind)) return reply({ error: `Section ${i + 1} : type invalide.` }, 400);
+        list.push({ title: oneLine(x.title, 100), body: multiLine(x.body, 3000), kind });
+      }
+      stmts.push(env.DB.prepare("INSERT INTO rules_meta (k, v) VALUES ('bareme_sections', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(list)));
+    }
     if (stmts.length) await runBatch(env, stmts);
     await touchRules(env);
     await audit(env, user, "règlement : barème indicatif modifié", "");

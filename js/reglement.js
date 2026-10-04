@@ -69,11 +69,23 @@
       ch.fHead = R.fold((label ? label + " " : "") + c.title);
       return ch;
     });
-    return { chapters: chapters, bareme: data.bareme || null, updated: data.updated || "", hasImportant: hasImportant };
+    // Le barème a aussi ses entrées (niveaux et sections) : elles se retrouvent par la recherche et par leur adresse (#bareme-grave)
+    var bar = [], bo = 1000000, barCh = { id: "bareme", label: "", title: "Barème des sanctions", fHead: R.fold("Barème des sanctions") };
+    var addBar = function (id, title, body) {
+      var plain = R.plain(body || "");
+      bar.push({ id: id, num: "", title: title, body: body || "", important: false, chapter: barCh, order: bo++, plain: plain, fTitle: R.fold(title), fBody: R.fold(plain), fNum: "", bar: true });
+    };
+    if (data.bareme) {
+      (data.bareme.levels || []).forEach(function (lv, i) { addBar("bareme-" + lv.key, "Niveau " + (i + 1) + " — " + lv.label, lv.body); });
+      (data.bareme.sections || []).forEach(function (sc, i) { addBar("bareme-s" + (i + 1), sc.title, sc.body); });
+    }
+    return { chapters: chapters, bareme: data.bareme || null, bar: bar, updated: data.updated || "", hasImportant: hasImportant };
   }
+  var barById = {};
   function index() {
-    byId = {}; ruleById = {};
+    byId = {}; ruleById = {}; barById = {};
     model.chapters.forEach(function (c) { byId[c.id] = c; c.rules.forEach(function (r) { ruleById[r.id] = r; }); });
+    model.bar.forEach(function (b) { barById[b.id] = b; });
   }
   function chapterHref(num) { var c = byId["chapitre-" + num]; return c ? "#" + c.id : null; }
   var RENDER_OPTS = { chapterHref: chapterHref };
@@ -242,8 +254,12 @@
     var grid = el("div", "levels");
     (b.levels || []).forEach(function (lv, i) {
       var card = el("article", "level level--" + lv.key);
+      card.id = "bareme-" + lv.key;
       var top = el("div", "level__top");
-      top.appendChild(el("h3", "level__name", lv.label));
+      var name = el("div", "level__id");
+      name.appendChild(el("p", "level__n", "Niveau " + (i + 1)));
+      name.appendChild(el("h3", "level__name", lv.label));
+      top.appendChild(name);
       var meter = el("span", "level__meter"); meter.setAttribute("aria-hidden", "true");
       for (var k = 0; k < 4; k++) meter.appendChild(el("i", k <= i ? "on" : ""));
       top.appendChild(meter);
@@ -252,7 +268,18 @@
       grid.appendChild(card);
     });
     sec.appendChild(grid);
-    sec.appendChild(el("p", "rules__note", "Ce barème est une aide à la décision, pas une grille automatique : la sanction finale dépend toujours du contexte, de l’intention, de la récidive et de l’impact sur les autres joueurs."));
+    if ((b.sections || []).length) {
+      var wrap = el("div", "bsections");
+      b.sections.forEach(function (sc, i) {
+        var box = el("article", "bsec bsec--" + (sc.kind || "info"));
+        box.id = "bareme-s" + (i + 1);
+        box.appendChild(el("h3", "bsec__title", R.typo(sc.title)));
+        var body = el("div", "bsec__body"); R.render(sc.body || "", body, RENDER_OPTS);
+        box.appendChild(body);
+        wrap.appendChild(box);
+      });
+      sec.appendChild(wrap);
+    }
     content.appendChild(sec);
   }
 
@@ -271,25 +298,25 @@
 
   function search(q) {
     var ts = terms(q), phrase = R.fold(q).replace(/\s+/g, " ").trim();
-    var hits = [];
-    model.chapters.forEach(function (c) {
-      c.rules.forEach(function (r) {
-        var score = 0, all = true;
-        for (var i = 0; i < ts.length; i++) {
-          var t = ts[i], s = 0;
-          if (r.fNum && (r.fNum === t || r.fNum.indexOf(t) === 0)) s += 20;
-          if (r.fTitle.indexOf(t) !== -1) s += 10;
-          var inBody = count(r.fBody, t);
-          if (inBody) s += 2 + inBody;
-          if (c.fHead.indexOf(t) !== -1) s += 1;
-          if (!s) { all = false; break; }
-          score += s;
-        }
-        if (!all) return;
-        if (ts.length > 1) { if (r.fTitle.indexOf(phrase) !== -1) score += 8; else if (r.fBody.indexOf(phrase) !== -1) score += 4; }
-        if (r.important) score += 1;
-        hits.push({ rule: r, score: score });
-      });
+    var hits = [], all = [];
+    model.chapters.forEach(function (c) { c.rules.forEach(function (r) { all.push(r); }); });
+    all = all.concat(model.bar);
+    all.forEach(function (r) {
+      var c = r.chapter, score = 0, ok = true;
+      for (var i = 0; i < ts.length; i++) {
+        var t = ts[i], s = 0;
+        if (r.fNum && (r.fNum === t || r.fNum.indexOf(t) === 0)) s += 20;
+        if (r.fTitle.indexOf(t) !== -1) s += 10;
+        var inBody = count(r.fBody, t);
+        if (inBody) s += 2 + inBody;
+        if (c.fHead.indexOf(t) !== -1) s += 1;
+        if (!s) { ok = false; break; }
+        score += s;
+      }
+      if (!ok) return;
+      if (ts.length > 1) { if (r.fTitle.indexOf(phrase) !== -1) score += 8; else if (r.fBody.indexOf(phrase) !== -1) score += 4; }
+      if (r.important) score += 1;
+      hits.push({ rule: r, score: score });
     });
     hits.sort(function (a, b) { return b.score - a.score || a.rule.order - b.rule.order; });
     var chapters = model.chapters.filter(function (c) { return ts.every(function (t) { return c.fHead.indexOf(t) !== -1; }); });
@@ -375,7 +402,8 @@
     else {
       var rule = id ? ruleById[id] : null;
       var ch = rule ? rule.chapter : id ? byId[id] : null;
-      if (id === "bareme" && model.bareme) view = { kind: "bareme" };
+      var bar = id && model.bareme ? barById[id] : null;
+      if ((id === "bareme" || bar) && model.bareme) view = { kind: "bareme" };
       else { if (!ch) { ch = model.chapters[0]; rule = null; id = ch.id; } view = { kind: "chapter", key: ch.key }; }
       if (opts.push && window.history && history.pushState && location.hash !== "#" + id) history.pushState(null, "", "#" + id);
     }
@@ -383,7 +411,10 @@
     else if (view.kind === "bareme") renderBareme();
     else renderChapter(byId["chapitre-" + view.key]);
     markNav();
-    if (view.kind === "chapter" && rule) {
+    if (view.kind === "bareme" && bar) {
+      var bn = document.getElementById(bar.id);
+      if (bn) { bn.scrollIntoView({ behavior: "instant", block: "start" }); flash(bn); }
+    } else if (view.kind === "chapter" && rule) {
       var d = document.getElementById(rule.id);
       if (d) { silent = true; d.open = true; setTimeout(function () { silent = false; }, 50); d.scrollIntoView({ behavior: "instant", block: "start" }); flash(d); }
     } else if (opts.scroll || opts.search) {
