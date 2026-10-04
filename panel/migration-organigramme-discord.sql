@@ -1,0 +1,2 @@
+ALTER TABLE org ADD COLUMN discord_id TEXT;
+ALTER TABLE org ADD COLUMN avatar TEXT;

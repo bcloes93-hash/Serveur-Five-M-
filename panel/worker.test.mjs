@@ -32,14 +32,14 @@ const makeEnv = (over = {}) => ({
 });
 
 /** Faux Discord. `member`: objet du membre, ou null pour « n'est pas dans le serveur ». */
-function fakeDiscord({ member = { roles: [ROLE_MOD], nick: null }, tokenOk = true, userId = "999999999999999999" } = {}) {
+function fakeDiscord({ member = { roles: [ROLE_MOD], nick: null }, tokenOk = true, userId = "999999999999999999", globalName = "Jaguuar_" } = {}) {
   const calls = [];
   const original = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     calls.push({ url: u, init });
     if (u.endsWith("/oauth2/token")) return tokenOk ? Response.json({ access_token: "AT" }) : new Response("{}", { status: 400 });
-    if (u.endsWith("/users/@me")) return Response.json({ id: userId, username: "jaguuar", global_name: "Jaguuar_", avatar: "abc123" });
+    if (u.endsWith("/users/@me")) return Response.json({ id: userId, username: "jaguuar", global_name: globalName, avatar: "abc123" });
     if (u.endsWith(`/users/@me/guilds/${GUILD}/member`)) return member ? Response.json(member) : new Response("{}", { status: 404 });
     return new Response("?", { status: 500 });
   };
@@ -68,9 +68,14 @@ const call = (env, path, { method = "GET", token, body, origin = SITE } = {}) =>
   return panel.fetch(new Request(`${W}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined }), env);
 };
 
+// Une connexion inscrit désormais la personne dans « À placer » (testé à part, plus bas). Pour que les autres tests
+// comptent seulement ce qu'ils ont eux-mêmes créé, on retire la fiche et la ligne de journal ajoutées par cette connexion.
 async function staffToken(env, roles, opts = {}) {
+  const before = env.DB.raw.prepare("SELECT COALESCE(MAX(id), 0) AS n FROM org").get().n;
   const { token } = await connect(env, { member: { roles }, ...opts });
   assert.ok(token, "connexion attendue");
+  env.DB.raw.prepare("DELETE FROM org WHERE id > ? AND discord_id IS NOT NULL").run(before);
+  env.DB.raw.prepare("DELETE FROM audit WHERE action = 'organigramme : ajouté à la connexion'").run();
   return token;
 }
 
@@ -336,6 +341,103 @@ test("CORS : toutes les méthodes HTTP utilisées par la page du panel sont auto
   // une origine inconnue n'obtient aucune autorisation
   const evil = await panel.fetch(new Request(`${W}/api/org/1`, { method: "OPTIONS", headers: { origin: "https://pirate.example" } }), env);
   assert.equal(evil.headers.get("access-control-allow-origin"), null);
+});
+
+/* ---------- Organigramme : inscription à la connexion ---------- */
+
+const orgRows = (env, where = "1 = 1", ...args) => env.DB.raw.prepare(`SELECT * FROM org WHERE ${where} ORDER BY id`).all(...args);
+
+test("connexion : une personne du staff apparaît dans « À placer », avec sa photo Discord, sans doublon", async () => {
+  const env = supportEnv();
+  const first = await connect(env, { member: { roles: [ROLE_SUPPORT], nick: "Sup" }, userId: "777777777777777777" });
+  assert.ok(first.token);
+  let rows = orgRows(env);
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].name, rows[0].role, rows[0].kind, rows[0].tier, rows[0].grp, rows[0].discord_id, rows[0].avatar],
+    ["Sup", "Support", "other", 9, "À placer", "777777777777777777", "abc123"]);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM audit WHERE action = 'organigramme : ajouté à la connexion'").get().n, 1);
+  // 2e connexion : aucune nouvelle fiche
+  await connect(env, { member: { roles: [ROLE_SUPPORT], nick: "Sup" }, userId: "777777777777777777" });
+  assert.equal(orgRows(env).length, 1, "pas de doublon");
+  // le titre reflète le niveau Discord
+  const e2 = makeEnv();
+  for (const [i, [roles, label]] of [[[ROLE_MOD], "Modérateur"], [[ROLE_ADMIN], "Admin"]].entries()) {
+    await connect(e2, { member: { roles, nick: "N" + label }, userId: "10000000000000000" + (i + 1) });
+  }
+  assert.deepEqual(orgRows(e2).map((r) => [r.name, r.role]), [["NModérateur", "Modérateur"], ["NAdmin", "Admin"]]);
+  // le panel lit les fiches avec leur photo
+  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const list = (await (await call(env, "/api/org", { token: admin })).json()).org;
+  assert.deepEqual([list[0].discord_id, list[0].avatar], ["777777777777777777", "abc123"]);
+});
+
+test("connexion : ni les non-staff, ni les connexions refusées ne s'inscrivent", async () => {
+  const env = makeEnv();
+  const r = await connect(env, { member: { roles: ["000000000000000000"], nick: "Intrus" } });
+  assert.ok(!r.token);
+  assert.equal(orgRows(env).length, 0);
+  const r2 = await connect(env, { member: null });
+  assert.ok(!r2.token);
+  assert.equal(orgRows(env).length, 0);
+});
+
+test("connexion : une fiche créée à la main au même nom est reliée au compte (toutes ses cases), sans doublon", async () => {
+  const env = makeEnv();
+  env.DB.raw.exec(readFileSync(new URL("./seed.sql", import.meta.url), "utf8"));
+  const adm = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888", globalName: "Boss" });
+  // Taalback figure déjà dans deux cases, créées à la main
+  assert.equal((await send(env, "/api/org", adm, "POST", memberBody({ name: "Taalback", kind: "adm_legal" }))).status, 201);
+  const before = orgRows(env).length;
+  const r = await connect(env, { member: { roles: [ROLE_MOD], nick: "taalback" }, userId: "333333333333333330" });
+  assert.ok(r.token);
+  assert.equal(orgRows(env).length, before, "aucune fiche en plus");
+  const t = orgRows(env, "name = 'Taalback' COLLATE NOCASE");
+  assert.equal(t.length, 2);
+  assert.ok(t.every((x) => x.discord_id === "333333333333333330" && x.avatar === "abc123"), "les deux lignes de Taalback sont reliées");
+  // reconnexion : la photo est rafraîchie sur toutes les lignes, toujours aucun doublon
+  await connect(env, { member: { roles: [ROLE_MOD], nick: "Autre pseudo" }, userId: "333333333333333330" });
+  assert.equal(orgRows(env).length, before);
+  // le nom du compte (nom affiché ou d'utilisateur) sert aussi à relier une fiche
+  const r3 = await connect(env, { member: { roles: [ROLE_MOD] }, userId: "444444444444444441" });   // pas de pseudo : nom affiché « Jaguuar_ »
+  assert.ok(r3.token);
+  assert.equal(orgRows(env, "name = 'Jaguuar_'")[0].discord_id, "444444444444444441", "relié par le nom affiché");
+  assert.equal(orgRows(env).length, before);
+});
+
+test("connexion : deux personnes de même nom affiché obtiennent chacune leur fiche ; une copie reprend la photo", async () => {
+  const env = makeEnv();
+  await connect(env, { member: { roles: [ROLE_MOD], nick: "Alex" }, userId: "111111111111111110" });
+  await connect(env, { member: { roles: [ROLE_MOD], nick: "Alex" }, userId: "222222222222222220" });
+  const rows = orgRows(env);
+  assert.equal(rows.length, 2);
+  assert.notEqual(rows[0].name.toLowerCase(), rows[1].name.toLowerCase(), "noms distincts");
+  assert.match(rows[1].name, /^Alex \(2220\)$/);
+  // copie d'une fiche reliée : la nouvelle ligne hérite du compte Discord
+  const adm = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  assert.equal((await send(env, "/api/org", adm, "POST", memberBody({ name: "Alex", kind: "adm_rp" }))).status, 201);
+  const copy = orgRows(env, "kind = 'adm_rp'")[0];
+  assert.deepEqual([copy.discord_id, copy.avatar], ["111111111111111110", "abc123"]);
+  // une fiche sans compte relié n'en reçoit pas
+  assert.equal((await send(env, "/api/org", adm, "POST", memberBody({ name: "Inconnu", kind: "adm_rp" }))).status, 201);
+  assert.equal(orgRows(env, "name = 'Inconnu'")[0].discord_id, null);
+});
+
+test("connexion et organigramme : une base pas encore migrée (sans colonnes Discord) continue de fonctionner", async () => {
+  const env = makeEnv();
+  env.DB.raw.exec("DROP TABLE org; CREATE TABLE org (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT NOT NULL, grp TEXT NOT NULL, tier INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'other', position INTEGER NOT NULL DEFAULT 0);");
+  const adm = await connect(env, { member: { roles: [ROLE_ADMIN], nick: "Boss" } });
+  assert.ok(adm.token, "la connexion n'échoue pas");
+  assert.equal(orgRows(env).length, 0, "rien n'est inscrit tant que la base n'est pas migrée");
+  assert.equal((await send(env, "/api/org", adm.token, "POST", memberBody({ name: "Isar", kind: "adm_rp" }))).status, 201, "l'organigramme reste modifiable");
+  const body = await (await call(env, "/api/org", { token: adm.token })).json();
+  assert.equal(body.org.length, 1);
+  assert.ok(!("discord_id" in body.org[0]), "liste sans photo (repli)");
+  // la migration fournie s'applique et active la fonction
+  env.DB.raw.exec(readFileSync(new URL("./migration-organigramme-discord.sql", import.meta.url), "utf8").replace(/\r?\n/g, " "));
+  assert.ok(!/--/.test(readFileSync(new URL("./migration-organigramme-discord.sql", import.meta.url), "utf8")), "migration sans commentaire (console D1)");
+  await connect(env, { member: { roles: [ROLE_ADMIN], nick: "Boss" } });
+  assert.equal(orgRows(env, "name = 'Boss'").length, 1);
+  assert.equal((await (await call(env, "/api/org", { token: adm.token })).json()).org.find((r) => r.name === "Boss").discord_id, "999999999999999999");
 });
 
 /* ---------- Commandes et organigramme ---------- */

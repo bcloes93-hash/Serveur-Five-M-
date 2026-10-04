@@ -402,6 +402,7 @@ a:hover { color: #7be6ff; }
   font-family: var(--font-display); font-size: 1.25rem; line-height: 1; color: #fff;
   background: linear-gradient(135deg, var(--na), rgba(255, 255, 255, 0.2) 150%); box-shadow: 0 0 14px color-mix(in srgb, var(--na) 45%, transparent);
 }
+.tcard__avatar--photo { object-fit: cover; background: #1b2033; }
 .tcard__body { flex: 1; min-width: 0; }
 .tcard__name { display: block; font-weight: 700; line-height: 1.25; overflow-wrap: break-word; }
 .tcard__role { display: block; margin-top: 1px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.03em; color: var(--na); overflow-wrap: anywhere; }
@@ -416,10 +417,11 @@ a:hover { color: #7be6ff; }
 .tcard__btn:hover, .tcard__btn:focus-visible { background: rgba(255, 255, 255, 0.14); }
 .tcard__btn--danger { color: #ff8da1; border-color: rgba(255, 84, 104, 0.45); }
 
-/* Case étroite (6 admins sur une ligne) : on enlève la pastille d'initiale pour laisser la place aux noms */
+/* Case étroite (6 admins sur une ligne) : la photo passe au-dessus du nom, qui garde toute la largeur */
 @container (max-width: 205px) {
-  .tcard { padding: 7px 8px; gap: 8px; }
-  .tcard__avatar { display: none; }
+  .tcard { flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 4px; padding: 8px; text-align: center; }
+  .tcard__body { flex: none; width: 100%; }
+  .tcard__tools { flex: none; width: 100%; }
 }
 
 /* Pôles d'orientation (légende, et mise en avant au clic) */

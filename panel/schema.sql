@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS org (
   grp         TEXT NOT NULL,
   tier        INTEGER NOT NULL,
   kind        TEXT NOT NULL DEFAULT 'other',
-  position    INTEGER NOT NULL DEFAULT 0
+  position    INTEGER NOT NULL DEFAULT 0,
+  discord_id  TEXT,
+  avatar      TEXT
 );
 CREATE TABLE IF NOT EXISTS penalties (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

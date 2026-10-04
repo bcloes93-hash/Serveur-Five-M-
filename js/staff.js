@@ -635,11 +635,27 @@
   }
 
   /* --- cartes et cases --- */
+  // Photo Discord de la personne (mémorisée à sa première connexion) ; sinon, l'initiale du nom.
+  function discordPhoto(m) {
+    if (!/^\d{5,25}$/.test(String(m.discord_id || "")) || !/^\w{1,64}$/.test(String(m.avatar || ""))) return null;
+    return "https://cdn.discordapp.com/avatars/" + m.discord_id + "/" + m.avatar + ".png?size=64";
+  }
+  function initialBadge(m) {
+    var b = el("span", "tcard__avatar", String(m.name || "?").charAt(0).toUpperCase());
+    b.setAttribute("aria-hidden", "true");
+    return b;
+  }
+
   function treeCard(m, movable) {
     var li = el("li", "tcard");
     li.setAttribute("data-id", String(m.id));
-    var av = el("span", "tcard__avatar", String(m.name || "?").charAt(0).toUpperCase());
-    av.setAttribute("aria-hidden", "true");
+    var photo = discordPhoto(m), av;
+    if (photo) {
+      av = el("img", "tcard__avatar tcard__avatar--photo");
+      av.src = photo; av.alt = ""; av.width = 34; av.height = 34; av.loading = "lazy"; av.referrerPolicy = "no-referrer";
+      av.setAttribute("aria-hidden", "true");
+      av.addEventListener("error", function () { if (av.parentNode) av.parentNode.replaceChild(initialBadge(m), av); });   // photo introuvable : l'initiale
+    } else av = initialBadge(m);
     li.appendChild(av);
     var box = el("div", "tcard__body");
     box.appendChild(el("span", "tcard__name", m.name));

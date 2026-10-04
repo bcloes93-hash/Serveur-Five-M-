@@ -242,6 +242,36 @@ async function login(request, env) {
   return redirect(auth.href, `sl_oauth=${nonce}; Max-Age=600; Path=/; HttpOnly; Secure; SameSite=Lax`);
 }
 
+const LEVEL_LABEL = { founder: "Fondateur", manager: "Manager", admin: "Admin", mod: "Modérateur", support: "Support" };
+
+/**
+ * À la connexion, la personne apparaît dans « À placer » de l'organigramme (si elle n'y figure pas déjà) et sa photo
+ * Discord est mémorisée. Une fiche créée à la main qui porte déjà son nom (pseudo du serveur, nom affiché ou nom
+ * d'utilisateur) est simplement reliée à son compte. Ne bloque jamais la connexion (voir l'appel).
+ */
+async function syncOrg(env, user, member, level) {
+  const id = String(user.id);
+  const avatar = user.avatar && /^\w{1,64}$/.test(user.avatar) ? user.avatar : null;
+  const known = await env.DB.prepare("SELECT id FROM org WHERE discord_id = ? LIMIT 1").bind(id).first();
+  if (known) {
+    await env.DB.prepare("UPDATE org SET avatar = ? WHERE discord_id = ?").bind(avatar, id).run();
+    return;
+  }
+  const names = [...new Set([member.nick, user.global_name, user.username].map((n) => clean(n, 40)).filter((n) => n && n !== "Staff"))];
+  for (const n of names) {
+    const out = await env.DB.prepare("UPDATE org SET discord_id = ?, avatar = ? WHERE discord_id IS NULL AND name = ? COLLATE NOCASE").bind(id, avatar, n).run();
+    if (out.meta && out.meta.changes) return;
+  }
+  let name = names[0] || "Staff";
+  const clash = await env.DB.prepare("SELECT 1 AS x FROM org WHERE name = ? COLLATE NOCASE AND kind = 'other' LIMIT 1").bind(name).first();
+  if (clash) name = clean(`${name.slice(0, 33)} (${id.slice(-4)})`, 40);
+  const last = await env.DB.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS n FROM org WHERE kind = 'other'").first();
+  const pos = Math.min(99, Number(last && last.n) || 0);
+  await env.DB.prepare("INSERT INTO org (name, role, grp, tier, kind, position, discord_id, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(name, LEVEL_LABEL[level], NODES.other.grp, NODES.other.tier, "other", pos, id, avatar).run();
+  await audit(env, { sub: id, name }, "organigramme : ajouté à la connexion", name);
+}
+
 async function callback(request, env, url) {
   const fail = (code) => redirect(`${env.PANEL_URL}#error=${code}`, CLEAR_COOKIE);
 
@@ -303,6 +333,7 @@ async function callback(request, env, url) {
   try {
     await audit(env, { sub: String(user.id), name }, "connexion", { founder: "fondateur", manager: "responsable", admin: "administration", mod: "modération", support: "support" }[level]);
   } catch { return fail("server"); }   // base absente ou schema.sql non exécuté
+  try { await syncOrg(env, user, member, level); } catch { /* organigramme pas encore migré : la connexion n'en dépend pas */ }
   return redirect(`${env.PANEL_URL}#token=${token}`, CLEAR_COOKIE);
 }
 
@@ -412,7 +443,8 @@ async function api(request, env, url) {
       actions: { add: "commande ajoutée", edit: "commande modifiée", del: "commande supprimée" },
     },
     org: {
-      list: "SELECT id, name, role, grp, tier, kind, position FROM org ORDER BY tier, position, id",
+      list: "SELECT id, name, role, grp, tier, kind, position, discord_id, avatar FROM org ORDER BY tier, position, id",
+      listFallback: "SELECT id, name, role, grp, tier, kind, position FROM org ORDER BY tier, position, id",   // avant migration-organigramme-discord.sql
       // On joint la liste des cases connues : le panel s'en sert pour repérer un relais pas à jour.
       extra: () => ({ nodes: KINDS }),
       parse: parseMember, label_of: (v) => v.name,
@@ -420,6 +452,11 @@ async function api(request, env, url) {
       update: ["UPDATE org SET name = ?, role = ?, grp = ?, tier = ?, kind = ?, position = ? WHERE id = ?", (v, id) => [v.name, v.role, v.grp, v.tier, v.kind, v.position, id]],
       name: "SELECT name AS label FROM org WHERE id = ?", remove: "DELETE FROM org WHERE id = ?",
       // Une personne peut être dans plusieurs cases, mais une seule fois dans la même.
+      // Une copie (même nom, autre case) reprend le compte Discord et la photo de la personne.
+      after: async (env, v, id) => {
+        const src = await env.DB.prepare("SELECT discord_id, avatar FROM org WHERE name = ? COLLATE NOCASE AND discord_id IS NOT NULL AND id != ? LIMIT 1").bind(v.name, id).first();
+        if (src) await env.DB.prepare("UPDATE org SET discord_id = ?, avatar = ? WHERE id = ?").bind(src.discord_id, src.avatar, id).run();
+      },
       dup: ["SELECT id FROM org WHERE name = ? COLLATE NOCASE AND kind = ? AND id != ?", (v, id) => [v.name, v.kind, id], "Cette personne est déjà dans cette case."],
       actions: { add: "organigramme : membre ajouté", edit: "organigramme : membre modifié", del: "organigramme : membre retiré" },
     },
@@ -435,8 +472,10 @@ async function api(request, env, url) {
       args = LEVEL_NAMES.filter((l) => RANK[l] <= RANK[user.lvl]);
       sql = sql.replace("{levels}", args.map(() => "?").join(", "));
     }
-    const stmt = env.DB.prepare(sql);
-    const { results } = await (args.length ? stmt.bind(...args) : stmt).all();
+    const run = (q) => { const stmt = env.DB.prepare(q); return (args.length ? stmt.bind(...args) : stmt).all(); };
+    let out;
+    try { out = await run(sql); } catch (e) { if (!res.listFallback) throw e; out = await run(res.listFallback); }
+    const { results } = out;
     return reply({ [listMatch[1]]: res.shape ? res.shape(results) : results, ...(res.extra ? res.extra() : {}) });
   }
 
@@ -467,6 +506,7 @@ async function api(request, env, url) {
 
     if (request.method === "POST") {
       const out = await env.DB.prepare(res.insert[0]).bind(...res.insert[1](parsed.value)).run();
+      if (res.after) { try { await res.after(env, parsed.value, out.meta && out.meta.last_row_id); } catch { /* base pas encore migrée */ } }
       await audit(env, user, res.actions.add, res.label_of(parsed.value));
       return reply({ ok: true, id: out.meta && out.meta.last_row_id }, 201);
     }

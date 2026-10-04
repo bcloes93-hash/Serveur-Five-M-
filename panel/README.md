@@ -58,7 +58,12 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
     dans « À placer » : **elle n'est jamais supprimée par ce bouton**. Seul « Supprimer » (sur une carte de « À placer »,
     ou dans la liste de gestion en bas de page) l'enlève définitivement, après confirmation ;
   - ajouter quelqu'un depuis le formulaire : sans case choisie, il arrive dans **« À placer »** (en haut du schéma),
-    d'où on le glisse dans l'arbre. Les personnes déjà enregistrées avant cette version (anciens rangs) y arrivent aussi.
+    d'où on le glisse dans l'arbre. Les personnes déjà enregistrées avant cette version (anciens rangs) y arrivent aussi ;
+  - **à la connexion, toute personne du staff (support et au-dessus) est ajoutée automatiquement dans « À placer »**, avec sa
+    **photo Discord**. Si une fiche créée à la main porte déjà son nom (pseudo sur le serveur, nom affiché ou nom d'utilisateur
+    Discord), elle est simplement reliée à son compte, sans doublon, et affiche sa photo. Seules les personnes qui se sont
+    connectées au moins une fois apparaissent ainsi. Sont mémorisés, dans la base protégée (visible du seul staff connecté) :
+    l'identifiant Discord, le pseudo et l'identifiant de la photo.
 
   Ce schéma est une **représentation** de l'équipe : déplacer quelqu'un n'en change **ni les rôles Discord, ni les accès
   au panel** (qui viennent toujours des rôles Discord). Les noms des cases sont fixés dans le code (`worker.mjs` et
@@ -109,7 +114,7 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 | `sanctions` | Journal : joueur, identifiant facultatif, type (`avertissement`, `expulsion`, `ban_temp`, `ban_def`, `note`), motif, durée, auteur, date ; suppression « douce » (`deleted_at`) |
 | `audit` | Journal d'activité : connexions, ajouts, modifications et suppressions |
 | `commands` | Commandes Discord / FiveM (`platform`, catégorie, commande, description, exemple, `min_level` = niveau minimal pour la voir) |
-| `org` | Organigramme : une ligne par personne **et par case** (nom, titre affiché, `kind` = la case, ex. `adm_legal`, ou `other` = à placer ; `grp` et `tier` sont déduits de la case par le serveur ; ordre) |
+| `org` | Organigramme : une ligne par personne **et par case** (nom, titre affiché, `kind` = la case, ex. `adm_legal`, ou `other` = à placer ; `grp` et `tier` sont déduits de la case par le serveur ; ordre ; `discord_id` et `avatar` = compte et photo Discord, renseignés à la connexion) |
 | `penalties` | Barème : catégorie, infraction (`name`), paliers au format JSON (`steps`), précisions (`notes`) |
 
 ## Étape 4 – Relier la base et renseigner les réglages
@@ -173,6 +178,15 @@ Aucune modification de la base n'est nécessaire (la table `org` est inchangée)
 [`worker.mjs`](./worker.mjs) dans le relais du panel (*Edit code* → coller → **Deploy**), **avant** d'utiliser le nouvel
 organigramme : l'ancien code refuserait les nouvelles cases. Les membres déjà enregistrés (sauf le fondateur) apparaissent
 dans « À placer » : glissez-les dans leurs pôles.
+
+### Mise à jour : photos Discord et inscription à la connexion
+1. Dans **D1 → votre base → Console**, collez [`migration-organigramme-discord.sql`](./migration-organigramme-discord.sql)
+   (deux `ALTER TABLE`) et **Execute**. **À faire une seule fois** : le refaire donne une erreur « duplicate column »,
+   sans gravité.
+2. Collez ensuite le nouveau [`worker.mjs`](./worker.mjs) dans le relais du panel (*Edit code* → **Deploy**).
+
+L'ordre n'est pas critique : tant que l'étape 1 n'est pas faite, le panel fonctionne comme avant (initiales au lieu de
+photos, pas d'inscription automatique), sans erreur.
 
 ## À savoir
 - **Données privées** : les commandes et l'organigramme du panel ne sont lisibles qu'après connexion avec un rôle staff.
