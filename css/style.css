@@ -315,6 +315,70 @@ a:hover { color: #7be6ff; }
   border: 1px solid rgba(139, 92, 246, 0.45); background: rgba(139, 92, 246, 0.1); color: #d9d6f7;
 }
 
+/* ---------- Organigramme ---------- */
+.org__chart { --w: 260px; --gap: 16px; --link: 28px; --stub: 20px; --line: rgba(139, 92, 246, 0.6); display: flex; flex-direction: column; align-items: center; margin-top: 28px; }
+.org__group {
+  position: relative; width: min(100%, 880px); padding: 34px 20px 22px;
+  display: flex; flex-direction: column; align-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.18); border-radius: var(--radius);
+}
+.org__group::before {
+  content: attr(data-label); position: absolute; top: -13px; left: 20px; padding: 3px 14px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan);
+}
+.org__link { width: 2px; height: var(--link); background: var(--line); flex: none; }
+.org__row { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; gap: var(--gap); position: relative; }
+.org__node { width: var(--w); position: relative; }
+/* Barre horizontale reliant plusieurs personnes du même niveau */
+.org__row--multi { padding-top: var(--stub); }
+.org__row--multi::before {
+  content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%); height: 2px; background: var(--line);
+  width: calc((var(--n) - 1) * (var(--w) + var(--gap)));
+}
+.org__row--multi > .org__node::before { content: ""; position: absolute; top: calc(var(--stub) * -1); left: 50%; width: 2px; height: var(--stub); background: var(--line); }
+@media (max-width: 800px) {
+  .org__row { flex-direction: column; align-items: stretch; width: 100%; }
+  .org__node { width: 100%; }
+  .org__row--multi { padding-top: 0; }
+  .org__row--multi::before, .org__row--multi > .org__node::before { display: none; }
+}
+
+/* ---------- Page commandes ---------- */
+.cmd__search { margin-top: 24px; max-width: 420px; }
+.cmd__count { margin: 10px 0 0; color: var(--muted); font-size: 0.92rem; min-height: 1.3em; }
+.cmd__list { margin-top: 8px; display: grid; gap: 28px; }
+.cmd__empty { margin: 16px 0 0; padding: 18px 20px; border-radius: 12px; border: 1px dashed var(--border); color: var(--muted); }
+.cmd__cat { margin: 0 0 12px; font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; letter-spacing: 0.06em; color: var(--text); display: flex; align-items: center; gap: 14px; }
+.cmd__cat::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+.cmd__items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cmd { padding: 14px 18px; border-radius: 12px; border: 1px solid var(--border); border-left: 3px solid var(--cyan); background: rgba(255, 255, 255, 0.03); }
+.cmd__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.cmd__code { font: 700 1.05rem/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--cyan); background: rgba(34, 211, 255, 0.08); padding: 3px 10px; border-radius: 8px; overflow-wrap: anywhere; }
+.cmd__desc { margin: 8px 0 0; color: var(--text); }
+.cmd__ex { margin: 6px 0 0; color: var(--muted); font-size: 0.92rem; }
+.cmd__ex code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--text); overflow-wrap: anywhere; }
+
+.org__row--wrap { flex-wrap: wrap; }
+.member--other { --accent: #9aa0c8; }
+.org__chart:empty { display: none; }
+
+/* Boutons de choix Discord / FiveM */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 6px; margin-top: 20px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); max-width: 100%; }
+.seg__btn { font: 600 0.95rem/1 var(--font-body); color: var(--muted); background: transparent; border: 0; padding: 12px 20px; border-radius: 999px; cursor: pointer; transition: color .2s, background .2s; }
+.seg__btn:hover { color: var(--text); background: var(--surface-hover); }
+.seg__btn[aria-pressed="true"] { color: #fff; background: var(--grad-btn); box-shadow: 0 6px 24px rgba(255, 60, 172, 0.3); }
+@media (max-width: 560px) { .seg { display: flex; border-radius: 22px; } .seg__btn { flex: 1; padding: 12px 8px; } }
+
+/* Actions d'administration sur une commande / un membre */
+.cmd__admin { display: flex; gap: 6px; margin-top: 8px; }
+.btn--danger { color: #fb7185 !important; }
+.manage { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 8px; }
+.manage__item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.03); }
+.manage__info { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.manage__meta { color: var(--muted); font-size: 0.9rem; }
+.manage__actions { display: flex; gap: 4px; }
+
 /* ---------- Prérequis (accueil) ---------- */
 .prereq { list-style: none; margin: 22px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .prereq li {

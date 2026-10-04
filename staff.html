@@ -88,6 +88,8 @@
           <div class="tabs staff__tabs" role="tablist" aria-label="Sections du panel">
             <button class="tabs__tab" type="button" role="tab" id="stab-home" aria-controls="view-home" aria-selected="true" data-view="home">Accueil</button>
             <button class="tabs__tab" type="button" role="tab" id="stab-sanctions" aria-controls="view-sanctions" aria-selected="false" tabindex="-1" data-view="sanctions">Sanctions</button>
+            <button class="tabs__tab" type="button" role="tab" id="stab-commands" aria-controls="view-commands" aria-selected="false" tabindex="-1" data-view="commands">Commandes</button>
+            <button class="tabs__tab" type="button" role="tab" id="stab-org" aria-controls="view-org" aria-selected="false" tabindex="-1" data-view="org">Organigramme</button>
             <button class="tabs__tab" type="button" role="tab" id="stab-audit" aria-controls="view-audit" aria-selected="false" tabindex="-1" data-view="audit" data-admin hidden>Activité</button>
             <button class="tabs__tab" type="button" role="tab" id="stab-server" aria-selected="false" tabindex="-1" disabled>Serveur <small>(bientôt)</small></button>
           </div>
@@ -101,6 +103,16 @@
                 <h3>Journal de sanctions</h3>
                 <p>Enregistrez et retrouvez les avertissements, expulsions et bannissements.</p>
                 <button class="btn btn--primary btn--small" type="button" data-go="sanctions">Ouvrir</button>
+              </article>
+              <article class="card">
+                <h3>Commandes</h3>
+                <p>Les commandes Discord et FiveM utiles à la modération.</p>
+                <button class="btn btn--primary btn--small" type="button" data-go="commands">Ouvrir</button>
+              </article>
+              <article class="card">
+                <h3>Organigramme</h3>
+                <p>La hiérarchie de l'équipe staff.</p>
+                <button class="btn btn--primary btn--small" type="button" data-go="org">Ouvrir</button>
               </article>
               <article class="card card--soon">
                 <h3>Candidatures</h3>
@@ -167,6 +179,127 @@
               </div>
               <p class="staff__hint" id="sanction-hint" aria-live="polite"></p>
               <ul class="sanctions" id="sanction-list"></ul>
+            </div>
+          </section>
+
+          <!-- Commandes -->
+          <section id="view-commands" role="tabpanel" aria-labelledby="stab-commands" hidden>
+            <div class="panelbox">
+              <h2 class="tabpanel__title">Commandes</h2>
+              <p class="tabpanel__lead">Commandes de référence pour le staff. Cliquez sur « Copier » pour récupérer une commande.</p>
+              <div class="seg" role="group" aria-label="Type de commandes">
+                <button class="seg__btn" type="button" data-platform="discord" aria-pressed="true">Commandes Discord</button>
+                <button class="seg__btn" type="button" data-platform="fivem" aria-pressed="false">Commandes FiveM</button>
+              </div>
+              <div class="field staff__search">
+                <label for="c-search">Rechercher une commande</label>
+                <input id="c-search" type="search" maxlength="60" placeholder="Nom ou mot-clé" autocomplete="off">
+              </div>
+              <p class="cmd__count" id="c-count" aria-live="polite"></p>
+              <div class="cmd__list" id="c-list"></div>
+            </div>
+
+            <div class="panelbox" data-admin hidden>
+              <h2 class="tabpanel__title" id="c-form-title">Ajouter une commande</h2>
+              <p class="tabpanel__lead">Réservé à l'administration.</p>
+              <form class="form" id="command-form" novalidate>
+                <div class="form__body">
+                  <div class="form__row form__row--even">
+                    <div class="field">
+                      <label for="c-platform">Type <span class="req" aria-hidden="true">*</span></label>
+                      <select id="c-platform" name="platform" required>
+                        <option value="discord">Commande Discord</option>
+                        <option value="fivem">Commande FiveM</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="c-cat">Catégorie</label>
+                      <input id="c-cat" name="cat" type="text" maxlength="40" list="c-cats" autocomplete="off" placeholder="ex. Modération, Tickets…">
+                      <datalist id="c-cats"></datalist>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="c-cmd">Commande <span class="req" aria-hidden="true">*</span></label>
+                    <input id="c-cmd" name="cmd" type="text" required maxlength="80" autocomplete="off" placeholder="ex. /commande [paramètre]">
+                  </div>
+                  <div class="field">
+                    <label for="c-descr">Description <span class="req" aria-hidden="true">*</span></label>
+                    <textarea id="c-descr" name="descr" rows="3" required maxlength="300"></textarea>
+                  </div>
+                  <div class="field">
+                    <label for="c-example">Exemple (facultatif)</label>
+                    <input id="c-example" name="example" type="text" maxlength="120" autocomplete="off" placeholder="ex. /commande valeur">
+                  </div>
+                  <div class="form__actions">
+                    <button class="btn btn--primary" type="submit" id="c-submit">Ajouter</button>
+                    <button class="btn btn--ghost" type="button" id="c-cancel" hidden>Annuler la modification</button>
+                  </div>
+                  <p class="form__status" id="c-status" role="status" aria-live="polite"></p>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <!-- Organigramme -->
+          <section id="view-org" role="tabpanel" aria-labelledby="stab-org" hidden>
+            <div class="panelbox">
+              <h2 class="tabpanel__title">Organigramme</h2>
+              <p class="tabpanel__lead">La hiérarchie de l'équipe staff, du haut vers le bas.</p>
+              <p class="sr-only" id="org-summary"></p>
+              <div class="org__chart" id="org-chart"></div>
+              <p class="staff__hint" id="org-hint" aria-live="polite"></p>
+            </div>
+
+            <div class="panelbox" data-admin hidden>
+              <h2 class="tabpanel__title" id="m-form-title">Gérer l'organigramme</h2>
+              <p class="tabpanel__lead">Réservé à l'administration. Les personnes d'un même <strong>niveau</strong> sont placées sur la même ligne (1 = tout en haut). Le <strong>groupe</strong> est l'encadré affiché autour de leur ligne.</p>
+              <form class="form" id="member-form" novalidate>
+                <div class="form__body">
+                  <div class="form__row form__row--even">
+                    <div class="field">
+                      <label for="m-name">Nom <span class="req" aria-hidden="true">*</span></label>
+                      <input id="m-name" name="name" type="text" required maxlength="40" autocomplete="off">
+                    </div>
+                    <div class="field">
+                      <label for="m-role">Rôle affiché <span class="req" aria-hidden="true">*</span></label>
+                      <input id="m-role" name="role" type="text" required maxlength="60" autocomplete="off" placeholder="ex. Admin">
+                    </div>
+                  </div>
+                  <div class="form__row form__row--even">
+                    <div class="field">
+                      <label for="m-grp">Groupe <span class="req" aria-hidden="true">*</span></label>
+                      <input id="m-grp" name="grp" type="text" required maxlength="30" autocomplete="off" list="m-grps" placeholder="ex. Administration">
+                      <datalist id="m-grps"></datalist>
+                    </div>
+                    <div class="field">
+                      <label for="m-tier">Niveau (1 à 9) <span class="req" aria-hidden="true">*</span></label>
+                      <input id="m-tier" name="tier" type="number" inputmode="numeric" min="1" max="9" step="1" required>
+                    </div>
+                  </div>
+                  <div class="form__row form__row--even">
+                    <div class="field">
+                      <label for="m-kind">Couleur de la carte</label>
+                      <select id="m-kind" name="kind">
+                        <option value="founder">Rose (fondateur)</option>
+                        <option value="manager">Violet (manager)</option>
+                        <option value="admin" selected>Cyan (admin)</option>
+                        <option value="mod">Vert (modérateur)</option>
+                        <option value="other">Gris (autre)</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="m-position">Ordre dans le niveau (facultatif)</label>
+                      <input id="m-position" name="position" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0">
+                    </div>
+                  </div>
+                  <div class="form__actions">
+                    <button class="btn btn--primary" type="submit" id="m-submit">Ajouter</button>
+                    <button class="btn btn--ghost" type="button" id="m-cancel" hidden>Annuler la modification</button>
+                  </div>
+                  <p class="form__status" id="m-status" role="status" aria-live="polite"></p>
+                </div>
+              </form>
+              <ul class="manage" id="m-list"></ul>
             </div>
           </section>
 

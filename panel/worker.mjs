@@ -1,5 +1,6 @@
 /**
  * Panel staff de Santos Legacy RP (Cloudflare Worker).
+ * Contenu protégé : journal de sanctions, commandes (Discord / FiveM), organigramme, journal d'activité.
  *
  * Ce programme est le « serveur » du panel : il vérifie que la personne est bien dans le Discord
  * ET possède un rôle staff, puis protège toutes les données (journal de sanctions…).
@@ -28,6 +29,8 @@ const DEC = new TextDecoder();
 const TYPES = ["avertissement", "expulsion", "ban_temp", "ban_def", "note"];
 const RANK = { mod: 1, admin: 2 };
 const JWT_HEAD = { alg: "HS256", typ: "JWT" };
+const PLATFORMS = ["discord", "fivem"];
+const KINDS = ["founder", "manager", "admin", "mod", "other"];
 const MAX_BODY_BYTES = 5000;
 const DISCORD = "https://discord.com/api/v10";
 
@@ -88,6 +91,39 @@ function ids(value) {
 
 function clean(value, max) {
   return String(value ?? "").replace(/[^\S\n]+/g, " ").replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, "").trim().slice(0, max);
+}
+
+const oneLine = (value, max) => clean(value, max).replace(/\n/g, " ");
+
+/** Lit le corps JSON d'une requête : { body } ou { status, error }. */
+async function readObject(request) {
+  if (Number(request.headers.get("content-length") || 0) > MAX_BODY_BYTES) return { status: 413, error: "Requête trop volumineuse." };
+  let body;
+  try { body = await request.json(); } catch { return { status: 400, error: "Requête invalide." }; }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { status: 400, error: "Requête invalide." };
+  return { body };
+}
+
+function parseCommand(body) {
+  const platform = String(body.platform || "");
+  const value = { platform, cat: oneLine(body.cat, 40) || "Général", cmd: oneLine(body.cmd, 80), descr: clean(body.descr, 300), example: oneLine(body.example, 120) };
+  if (!PLATFORMS.includes(platform)) return { error: "Type de commande invalide (Discord ou FiveM)." };
+  if (!value.cmd) return { error: "La commande est obligatoire." };
+  if (!value.descr) return { error: "La description est obligatoire." };
+  return { value };
+}
+
+function parseMember(body) {
+  const tier = Number(body.tier);
+  const position = body.position === "" || body.position == null ? 0 : Number(body.position);
+  const value = { name: oneLine(body.name, 40), role: oneLine(body.role, 60), grp: oneLine(body.grp, 30), tier, kind: String(body.kind || "other"), position };
+  if (!value.name) return { error: "Le nom est obligatoire." };
+  if (!value.role) return { error: "Le rôle (libellé affiché) est obligatoire." };
+  if (!value.grp) return { error: "Le groupe est obligatoire (ex. Direction, Administration)." };
+  if (!Number.isInteger(tier) || tier < 1 || tier > 9) return { error: "Le niveau doit être un nombre entier de 1 à 9." };
+  if (!Number.isInteger(position) || position < 0 || position > 99) return { error: "L'ordre doit être un nombre entier de 0 à 99." };
+  if (!KINDS.includes(value.kind)) return { error: "Couleur de carte invalide." };
+  return { value };
 }
 
 const SECURITY = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
@@ -238,10 +274,9 @@ async function api(request, env, url) {
   }
 
   if (path === "/api/sanctions" && request.method === "POST") {
-    if (Number(request.headers.get("content-length") || 0) > MAX_BODY_BYTES) return reply({ error: "Requête trop volumineuse." }, 413);
-    let body;
-    try { body = await request.json(); } catch { return reply({ error: "Requête invalide." }, 400); }
-    if (!body || typeof body !== "object" || Array.isArray(body)) return reply({ error: "Requête invalide." }, 400);
+    const input = await readObject(request);
+    if (!input.body) return reply({ error: input.error }, input.status);
+    const body = input.body;
     const player = clean(body.player, 80);
     const ref = clean(body.ref, 80);
     const type = String(body.type || "");
@@ -273,6 +308,65 @@ async function api(request, env, url) {
     if (RANK[user.lvl] < RANK.admin) return reply({ error: "Réservé à l'administration." }, 403);
     const { results } = await env.DB.prepare("SELECT at, staff_name, action, target FROM audit ORDER BY id DESC LIMIT 100").all();
     return reply({ audit: results });
+  }
+
+  /* --- Commandes et organigramme : lecture pour tout le staff, écriture pour l'administration --- */
+  const RESOURCES = {
+    commands: {
+      list: "SELECT id, platform, cat, cmd, descr, example FROM commands ORDER BY platform, cat COLLATE NOCASE, id",
+      parse: parseCommand, label: "commande", label_of: (v) => v.cmd,
+      insert: ["INSERT INTO commands (platform, cat, cmd, descr, example) VALUES (?, ?, ?, ?, ?)", (v) => [v.platform, v.cat, v.cmd, v.descr, v.example]],
+      update: ["UPDATE commands SET platform = ?, cat = ?, cmd = ?, descr = ?, example = ? WHERE id = ?", (v, id) => [v.platform, v.cat, v.cmd, v.descr, v.example, id]],
+      name: "SELECT cmd AS label FROM commands WHERE id = ?", remove: "DELETE FROM commands WHERE id = ?",
+      actions: { add: "commande ajoutée", edit: "commande modifiée", del: "commande supprimée" },
+    },
+    org: {
+      list: "SELECT id, name, role, grp, tier, kind, position FROM org ORDER BY tier, position, id",
+      parse: parseMember, label_of: (v) => v.name,
+      insert: ["INSERT INTO org (name, role, grp, tier, kind, position) VALUES (?, ?, ?, ?, ?, ?)", (v) => [v.name, v.role, v.grp, v.tier, v.kind, v.position]],
+      update: ["UPDATE org SET name = ?, role = ?, grp = ?, tier = ?, kind = ?, position = ? WHERE id = ?", (v, id) => [v.name, v.role, v.grp, v.tier, v.kind, v.position, id]],
+      name: "SELECT name AS label FROM org WHERE id = ?", remove: "DELETE FROM org WHERE id = ?",
+      actions: { add: "organigramme : membre ajouté", edit: "organigramme : membre modifié", del: "organigramme : membre retiré" },
+    },
+  };
+
+  const listMatch = /^\/api\/(commands|org)$/.exec(path);
+  const itemMatch = /^\/api\/(commands|org)\/(\d{1,12})$/.exec(path);
+  const res = RESOURCES[(listMatch || itemMatch || [])[1]];
+
+  if (res && listMatch && request.method === "GET") {
+    const { results } = await env.DB.prepare(res.list).all();
+    return reply({ [listMatch[1]]: results });
+  }
+
+  if (res && (listMatch ? request.method === "POST" : ["PUT", "DELETE"].includes(request.method))) {
+    if (RANK[user.lvl] < RANK.admin) return reply({ error: "Réservé à l'administration." }, 403);
+
+    if (request.method === "DELETE") {
+      const id = Number(itemMatch[2]);
+      const row = await env.DB.prepare(res.name).bind(id).first();
+      if (!row) return reply({ error: "Élément introuvable." }, 404);
+      await env.DB.prepare(res.remove).bind(id).run();
+      await audit(env, user, res.actions.del, row.label);
+      return reply({ ok: true });
+    }
+
+    const input = await readObject(request);
+    if (!input.body) return reply({ error: input.error }, input.status);
+    const parsed = res.parse(input.body);
+    if (parsed.error) return reply({ error: parsed.error }, 400);
+
+    if (request.method === "POST") {
+      const out = await env.DB.prepare(res.insert[0]).bind(...res.insert[1](parsed.value)).run();
+      await audit(env, user, res.actions.add, res.label_of(parsed.value));
+      return reply({ ok: true, id: out.meta && out.meta.last_row_id }, 201);
+    }
+
+    const id = Number(itemMatch[2]);
+    const out = await env.DB.prepare(res.update[0]).bind(...res.update[1](parsed.value, id)).run();
+    if (!out.meta || !out.meta.changes) return reply({ error: "Élément introuvable." }, 404);
+    await audit(env, user, res.actions.edit, res.label_of(parsed.value));
+    return reply({ ok: true });
   }
 
   return reply({ error: "Introuvable." }, 404);

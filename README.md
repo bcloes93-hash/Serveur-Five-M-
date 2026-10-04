@@ -15,7 +15,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `js/main.js` | Menu mobile, animations, statistiques Discord et FiveM |
 | `js/candidature.js` | Onglets, validation et envoi des candidatures |
 | `worker/` | Relais Cloudflare qui poste les candidatures dans Discord (`relay.mjs`, tests, notice) |
-| `staff.html`, `js/staff.js` | Page du panel staff (connexion Discord, journal de sanctions) |
+| `staff.html`, `js/staff.js` | Page du panel staff (connexion Discord, sanctions, commandes, organigramme) |
 | `panel/` | Relais Cloudflare du panel staff : connexion, droits, base de données (`worker.mjs`, `schema.sql`, tests, notice) |
 | `assets/` | Logo et bannières |
 

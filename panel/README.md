@@ -21,6 +21,11 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   identifiant ou motif ; chaque ligne garde l'auteur et la date.
 - **Journal d'activité** : connexions, sanctions ajoutées et supprimées. Une suppression est « douce » : la ligne reste
   en base, seul l'affichage la masque.
+- **Commandes** : deux listes, *Commandes Discord* et *Commandes FiveM*, avec recherche, regroupement par catégorie et
+  bouton « Copier ». Visibles par tout le staff connecté ; l'administration les ajoute, les modifie et les supprime
+  depuis le panel. Elles sont stockées dans la base protégée, **jamais dans le dépôt public**.
+- **Organigramme** : la hiérarchie de l'équipe (groupes, niveaux, couleurs), visible par le staff connecté et modifiable
+  par l'administration.
 - Réservés pour plus tard : suivi des candidatures, actions en direct sur le serveur FiveM.
 
 ## Ce qu'il vous faut
@@ -45,6 +50,9 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 ## Étape 3 – Créer la base de données (D1)
 1. Cloudflare → **Storage & databases** → **D1 SQL database** → **Create database** → nom : `staff-panel-db`.
 2. Ouvrez la base → onglet **Console**, collez **tout** le contenu de [`schema.sql`](./schema.sql), puis **Execute**.
+3. (Facultatif) Pour pré-remplir l'organigramme avec l'équipe actuelle, collez ensuite le contenu de
+   [`seed.sql`](./seed.sql) et **Execute**. **À faire une seule fois** : le refaire créerait des doublons.
+   Sans cette étape, l'organigramme démarre vide et l'administration le remplit depuis le panel.
 
 ## Étape 3 bis – Créer le relais
 1. **Compute** → **Workers & Pages** → **Create** → **Create Worker** → nom : `santos-legacy-staff` → **Deploy**.
@@ -82,7 +90,15 @@ staffApi: "https://santos-legacy-staff.b-cloes93.workers.dev",
 
 Le lien « Espace staff » apparaît alors dans le pied de page du site, et `staff.html` affiche la connexion.
 
+## Remplir les commandes
+Une fois connecté avec un compte **Administration** : onglet **Commandes** → formulaire « Ajouter une commande »
+(type Discord ou FiveM, catégorie, commande, description, exemple). Chaque ligne a ses boutons *Modifier* et *Supprimer*.
+Seule l'administration peut modifier ; la modération consulte et copie.
+
 ## À savoir
+- **Données privées** : les commandes et l'organigramme du panel ne sont lisibles qu'après connexion avec un rôle staff.
+  Ne les recopiez pas dans les fichiers du site (`index.html`, `staff.html`…), qui sont publics. L'organigramme du panel
+  est distinct de la page publique « Équipe », qui reste visible par tous.
 - **Rôles** : ils sont vérifiés à la connexion. Si quelqu'un perd son rôle, il garde sa session jusqu'à son expiration
   (8 h par défaut). Pour **déconnecter tout le monde immédiatement**, changez la valeur de `SESSION_SECRET`.
 - **Données personnelles** : le journal contient des informations sur des joueurs. Limitez-le au staff, ne notez que
@@ -98,4 +114,4 @@ Le lien « Espace staff » apparaît alors dans le pied de page du site, et `sta
 node --test panel/worker.test.mjs
 ```
 Les tests utilisent une vraie base SQLite en mémoire et un faux Discord : connexion, droits par rôle, jetons falsifiés,
-injection SQL, recherche, suppression douce.
+injection SQL, recherche, suppression douce, commandes et organigramme (lecture staff, écriture administration).

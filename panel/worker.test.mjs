@@ -321,3 +321,125 @@ test("base non initialisée (schema.sql oublié) : retour clair « error=server 
   assert.equal(location, `${PANEL_URL}#error=server`);
   assert.equal(token, null);
 });
+
+/* ---------- Commandes et organigramme ---------- */
+
+const cmdBody = (over = {}) => ({ platform: "fivem", cat: "Modération", cmd: "/kick [joueur] [motif]", descr: "Expulse un joueur du serveur.", example: "/kick 12 spam", ...over });
+const send = (env, path, token, method, body) => call(env, path, { method, token, body });
+
+test("commandes et organigramme : refusés sans connexion, même en lecture", async () => {
+  const env = makeEnv();
+  for (const p of ["/api/commands", "/api/org"]) {
+    assert.equal((await call(env, p)).status, 401, p);
+    assert.equal((await call(env, p, { method: "POST", body: {} })).status, 401, p);
+  }
+});
+
+test("commandes : tout le staff lit, seule l'administration ajoute, modifie et supprime", async () => {
+  const env = makeEnv();
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+
+  assert.equal((await send(env, "/api/commands", mod, "POST", cmdBody())).status, 403, "un modérateur n'ajoute pas");
+  const created = await send(env, "/api/commands", admin, "POST", cmdBody());
+  assert.equal(created.status, 201);
+  const { id } = await created.json();
+
+  const listed = (await (await call(env, "/api/commands", { token: mod })).json()).commands;
+  assert.equal(listed.length, 1, "un modérateur peut lire");
+  assert.deepEqual({ ...listed[0], id: undefined }, { id: undefined, platform: "fivem", cat: "Modération", cmd: "/kick [joueur] [motif]", descr: "Expulse un joueur du serveur.", example: "/kick 12 spam" });
+
+  assert.equal((await send(env, `/api/commands/${id}`, mod, "PUT", cmdBody({ cmd: "/x" }))).status, 403);
+  assert.equal((await send(env, `/api/commands/${id}`, mod, "DELETE")).status, 403);
+  assert.equal((await send(env, `/api/commands/${id}`, admin, "PUT", cmdBody({ cmd: "/ban [joueur]", platform: "discord" }))).status, 200);
+  const after = (await (await call(env, "/api/commands", { token: admin })).json()).commands[0];
+  assert.equal(after.cmd, "/ban [joueur]"); assert.equal(after.platform, "discord");
+
+  assert.equal((await send(env, `/api/commands/${id}`, admin, "DELETE")).status, 200);
+  assert.equal((await (await call(env, "/api/commands", { token: admin })).json()).commands.length, 0);
+  assert.equal((await send(env, `/api/commands/${id}`, admin, "DELETE")).status, 404, "déjà supprimée");
+  assert.equal((await send(env, "/api/commands/99999", admin, "PUT", cmdBody())).status, 404);
+  assert.equal((await send(env, "/api/commands/abc", admin, "DELETE")).status, 404);
+
+  const { audit } = await (await call(env, "/api/audit", { token: admin })).json();
+  assert.deepEqual(audit.slice(0, 3).map((a) => a.action), ["commande supprimée", "commande modifiée", "commande ajoutée"], "toutes les modifications sont journalisées");
+  assert.equal(audit[0].target, "/ban [joueur]");
+});
+
+test("commandes : validation, valeurs par défaut et tri", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const post = (b) => send(env, "/api/commands", admin, "POST", b);
+  assert.equal((await post(cmdBody({ platform: "autre" }))).status, 400);
+  assert.equal((await post(cmdBody({ platform: undefined }))).status, 400);
+  assert.equal((await post(cmdBody({ cmd: "  " }))).status, 400);
+  assert.equal((await post(cmdBody({ descr: "" }))).status, 400);
+  assert.equal((await post(null)).status, 400);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM commands").get().n, 0);
+
+  await post(cmdBody({ cat: "", cmd: "/b", descr: "d", example: undefined }));
+  await post(cmdBody({ platform: "discord", cat: "Tickets", cmd: "/ticket", descr: "d" }));
+  await post(cmdBody({ cat: "admin", cmd: "/a", descr: "d" }));
+  const rows = (await (await call(env, "/api/commands", { token: admin })).json()).commands;
+  assert.deepEqual(rows.map((r) => `${r.platform}:${r.cat}:${r.cmd}`), ["discord:Tickets:/ticket", "fivem:admin:/a", "fivem:Général:/b"], "tri par type puis catégorie ; catégorie vide = Général");
+  assert.equal(rows[2].example, "");
+
+  await post(cmdBody({ cmd: "x".repeat(500), descr: "y".repeat(5000), cat: "c".repeat(500), example: "e".repeat(500) }));
+  const long = env.DB.raw.prepare("SELECT cmd, descr, cat, example FROM commands ORDER BY id DESC LIMIT 1").get();
+  assert.deepEqual([long.cmd.length, long.descr.length, long.cat.length, long.example.length], [80, 300, 40, 120]);
+});
+
+test("commandes : les textes sont stockés tels quels (SQL et HTML inoffensifs côté serveur)", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const evil = "'); DROP TABLE commands; --";
+  const html = '<img src=x onerror=alert(1)>';
+  assert.equal((await send(env, "/api/commands", admin, "POST", cmdBody({ cmd: evil, descr: html }))).status, 201);
+  const row = (await (await call(env, "/api/commands", { token: admin })).json()).commands[0];
+  assert.equal(row.cmd, evil); assert.equal(row.descr, html);
+});
+
+const memberBody = (over = {}) => ({ name: "Jaguuar_", role: "Fondateur · Développeur", grp: "Direction", tier: 1, kind: "founder", position: 0, ...over });
+
+test("organigramme : tout le staff lit, seule l'administration modifie ; tout est journalisé", async () => {
+  const env = makeEnv();
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  assert.equal((await send(env, "/api/org", mod, "POST", memberBody())).status, 403);
+  const { id } = await (await send(env, "/api/org", admin, "POST", memberBody())).json();
+  assert.equal((await (await call(env, "/api/org", { token: mod })).json()).org.length, 1, "lecture pour la modération");
+  assert.equal((await send(env, `/api/org/${id}`, mod, "PUT", memberBody({ name: "X" }))).status, 403);
+  assert.equal((await send(env, `/api/org/${id}`, mod, "DELETE")).status, 403);
+  assert.equal((await send(env, `/api/org/${id}`, admin, "PUT", memberBody({ role: "Fondateur" }))).status, 200);
+  assert.equal((await (await call(env, "/api/org", { token: admin })).json()).org[0].role, "Fondateur");
+  assert.equal((await send(env, `/api/org/${id}`, admin, "DELETE")).status, 200);
+  assert.equal((await send(env, `/api/org/${id}`, admin, "DELETE")).status, 404);
+  const { audit } = await (await call(env, "/api/audit", { token: admin })).json();
+  assert.deepEqual(audit.slice(0, 3).map((a) => a.action), ["organigramme : membre retiré", "organigramme : membre modifié", "organigramme : membre ajouté"]);
+});
+
+test("organigramme : validation et tri par niveau puis ordre", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const post = (b) => send(env, "/api/org", admin, "POST", b);
+  for (const bad of [{ name: "" }, { role: " " }, { grp: "" }, { tier: 0 }, { tier: 10 }, { tier: 1.5 }, { tier: "abc" }, { position: -1 }, { position: 100 }, { kind: "roi" }]) {
+    assert.equal((await post(memberBody(bad))).status, 400, JSON.stringify(bad));
+  }
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM org").get().n, 0);
+  await post(memberBody({ name: "C", tier: 2, position: 1 }));
+  await post(memberBody({ name: "B", tier: 2, position: 0 }));
+  await post(memberBody({ name: "A", tier: 1 }));
+  await post(memberBody({ name: "D", tier: "3", position: "", kind: undefined }));
+  const rows = (await (await call(env, "/api/org", { token: admin })).json()).org;
+  assert.deepEqual(rows.map((r) => r.name), ["A", "B", "C", "D"]);
+  assert.equal(rows[3].kind, "other", "couleur par défaut"); assert.equal(rows[3].tier, 3);
+});
+
+test("organigramme pré-rempli avec seed.sql : l'équipe actuelle dans le bon ordre", async () => {
+  const env = makeEnv();
+  env.DB.raw.exec(readFileSync(new URL("./seed.sql", import.meta.url), "utf8"));
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const rows = (await (await call(env, "/api/org", { token: mod })).json()).org;
+  assert.deepEqual(rows.map((r) => `${r.tier}:${r.name}`), ["1:Jaguuar_", "2:Fumeurdefrap", "3:Taalback", "3:Isar", "3:Trafalgar", "4:Moncef"]);
+  assert.deepEqual([...new Set(rows.map((r) => r.grp))], ["Direction", "Administration", "Modération"]);
+});

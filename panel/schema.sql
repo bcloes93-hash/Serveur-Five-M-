@@ -25,3 +25,26 @@ CREATE TABLE IF NOT EXISTS audit (
   action      TEXT NOT NULL,
   target      TEXT NOT NULL DEFAULT ''
 );
+
+-- Commandes de référence pour le staff (Discord et FiveM). Visibles par le staff connecté,
+-- modifiables par l'administration depuis le panel. Rien de tout cela n'est dans le dépôt public.
+CREATE TABLE IF NOT EXISTS commands (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  platform    TEXT NOT NULL,                 -- discord | fivem
+  cat         TEXT NOT NULL DEFAULT 'Général',
+  cmd         TEXT NOT NULL,                 -- la commande, ex. /kick [joueur] [motif]
+  descr       TEXT NOT NULL,                 -- à quoi elle sert
+  example     TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_commands_platform ON commands (platform);
+
+-- Organigramme de l'équipe, visible par le staff connecté, modifiable par l'administration.
+CREATE TABLE IF NOT EXISTS org (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  role        TEXT NOT NULL,                 -- libellé affiché, ex. Fondateur · Développeur
+  grp         TEXT NOT NULL,                 -- groupe affiché autour du niveau : Direction, Administration…
+  tier        INTEGER NOT NULL,              -- niveau hiérarchique : 1 = tout en haut
+  kind        TEXT NOT NULL DEFAULT 'other', -- founder | manager | admin | mod | other (couleur de la carte)
+  position    INTEGER NOT NULL DEFAULT 0     -- ordre dans le niveau (facultatif)
+);

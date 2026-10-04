@@ -70,8 +70,10 @@
       t.setAttribute("aria-selected", String(on));
       t.tabIndex = on ? 0 : -1;
     });
-    ["home", "sanctions", "audit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
+    ["home", "sanctions", "commands", "org", "audit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
     if (name === "sanctions") loadSanctions();
+    if (name === "commands") { loadCommands(); if (!cmdState.editing) cForm.elements.platform.value = cmdState.platform; }
+    if (name === "org") loadOrg();
     if (name === "audit") loadAudit();
   }
   tabs.forEach(function (t, i) {
@@ -120,7 +122,7 @@
 
   function loadSanctions() {
     var q = $("#s-search").value.trim();
-    api("GET", "/api/sanctions" + (q ? "?q=" + encodeURIComponent(q) : "")).then(function (data) {
+    return api("GET", "/api/sanctions" + (q ? "?q=" + encodeURIComponent(q) : "")).then(function (data) {
       clear(list);
       data.sanctions.forEach(function (s) { list.appendChild(renderSanction(s)); });
       hint.textContent = data.sanctions.length ? "" : (q ? "Aucun résultat pour cette recherche." : "Aucune sanction enregistrée pour le moment.");
@@ -144,6 +146,7 @@
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     statusEl.className = "form__status";
+    statusEl.textContent = "";            // efface le message de l'envoi précédent
     if (!form.reportValidity()) return;
     var btn = $('[type="submit"]', form);
     btn.disabled = true;
@@ -156,11 +159,298 @@
     }).then(function () {
       form.reset();
       syncDuration();
-      statusEl.className = "form__status form__status--ok";
-      statusEl.textContent = "Sanction enregistrée.";
-      loadSanctions();
+      return loadSanctions().then(function () {
+        statusEl.className = "form__status form__status--ok";
+        statusEl.textContent = "Sanction enregistrée.";
+      });
     }, function (err) {
       if (err.status !== 401) statusEl.textContent = err.message || "Enregistrement impossible.";
+    }).then(function () { btn.disabled = false; });
+  });
+
+  /* ---------- Outils communs aux formulaires d'administration ---------- */
+  function isAdmin() { return !!state.me && state.me.level === "admin"; }
+
+  function copyText(text, done) {
+    var fallback = function () {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      done(ok);
+    };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+    else fallback();
+  }
+
+  function linkButton(label, onClick, danger) {
+    var b = el("button", "btn btn--small btn--link" + (danger ? " btn--danger" : ""), label);
+    b.type = "button";
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  /* ---------- Commandes (Discord / FiveM) ---------- */
+  var cmdState = { platform: "discord", items: [], editing: null };
+  var cList = $("#c-list"), cCount = $("#c-count"), cSearch = $("#c-search");
+  var cForm = $("#command-form"), cStatus = $("#c-status");
+
+  function renderCommand(c) {
+    var li = el("li", "cmd");
+    var top = el("div", "cmd__top");
+    top.appendChild(el("code", "cmd__code", c.cmd));
+    var copy = el("button", "btn btn--small btn--ghost cmd__copy", "Copier");
+    copy.type = "button";
+    copy.setAttribute("aria-label", "Copier la commande " + c.cmd);
+    copy.addEventListener("click", function () {
+      copyText(c.cmd, function (ok) {
+        copy.textContent = ok ? "Copié ✓" : "Copie impossible";
+        setTimeout(function () { copy.textContent = "Copier"; }, 1800);
+      });
+    });
+    top.appendChild(copy);
+    li.appendChild(top);
+    li.appendChild(el("p", "cmd__desc", c.descr));
+    if (c.example) {
+      var ex = el("p", "cmd__ex", "Exemple : ");
+      ex.appendChild(el("code", null, c.example));
+      li.appendChild(ex);
+    }
+    if (isAdmin()) {
+      var admin = el("div", "cmd__admin");
+      admin.appendChild(linkButton("Modifier", function () { startEditCommand(c); }));
+      admin.appendChild(linkButton("Supprimer", function () {
+        if (!window.confirm("Supprimer la commande « " + c.cmd + " » ?")) return;
+        api("DELETE", "/api/commands/" + encodeURIComponent(c.id)).then(loadCommands, function (e) { cCount.textContent = e.message || ""; });
+      }, true));
+      li.appendChild(admin);
+    }
+    return li;
+  }
+
+  function renderCommands() {
+    var q = cSearch.value.trim().toLowerCase();
+    var all = cmdState.items.filter(function (c) { return c.platform === cmdState.platform; });
+    var shown = all.filter(function (c) { return !q || (c.cmd + " " + c.descr + " " + c.cat + " " + c.example).toLowerCase().indexOf(q) !== -1; });
+    clear(cList);
+    if (!all.length) {
+      cCount.textContent = "";
+      cList.appendChild(el("p", "cmd__empty", isAdmin() ? "Aucune commande pour le moment. Ajoutez-en avec le formulaire ci-dessous." : "Aucune commande pour le moment."));
+      return;
+    }
+    cCount.textContent = shown.length + (shown.length > 1 ? " commandes" : " commande");
+    if (!shown.length) { cList.appendChild(el("p", "cmd__empty", "Aucune commande ne correspond à votre recherche.")); return; }
+    var cats = [], byCat = {};
+    shown.forEach(function (c) { if (!byCat[c.cat]) { byCat[c.cat] = []; cats.push(c.cat); } byCat[c.cat].push(c); });
+    cats.forEach(function (cat) {
+      var group = el("section", "cmd__group");
+      group.appendChild(el("h3", "cmd__cat", cat));
+      var ul = el("ul", "cmd__items");
+      byCat[cat].forEach(function (c) { ul.appendChild(renderCommand(c)); });
+      group.appendChild(ul);
+      cList.appendChild(group);
+    });
+  }
+
+  function refreshCategories() {
+    var dl = $("#c-cats"); clear(dl);
+    var seen = {};
+    cmdState.items.forEach(function (c) { if (!seen[c.cat]) { seen[c.cat] = 1; var o = document.createElement("option"); o.value = c.cat; dl.appendChild(o); } });
+  }
+
+  function loadCommands() {
+    return api("GET", "/api/commands").then(function (data) {
+      cmdState.items = data.commands;
+      renderCommands(); refreshCategories();
+    }, function (e) { if (e.status !== 401) cCount.textContent = e.message || ""; });
+  }
+
+  function setPlatform(p) {
+    cmdState.platform = p;
+    $$(".seg__btn[data-platform]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-platform") === p)); });
+    renderCommands();
+  }
+  $$(".seg__btn[data-platform]").forEach(function (b) {
+    b.addEventListener("click", function () { setPlatform(b.getAttribute("data-platform")); if (!cmdState.editing) cForm.elements.platform.value = cmdState.platform; });
+  });
+  cSearch.addEventListener("input", renderCommands);
+
+  function resetCommandForm() {
+    cForm.reset();
+    cForm.elements.platform.value = cmdState.platform;
+    cmdState.editing = null;
+    $("#c-form-title").textContent = "Ajouter une commande";
+    $("#c-submit").textContent = "Ajouter";
+    $("#c-cancel").hidden = true;
+  }
+  function startEditCommand(c) {
+    cmdState.editing = c.id;
+    cForm.elements.platform.value = c.platform; cForm.elements.cat.value = c.cat; cForm.elements.cmd.value = c.cmd;
+    cForm.elements.descr.value = c.descr; cForm.elements.example.value = c.example;
+    $("#c-form-title").textContent = "Modifier la commande";
+    $("#c-submit").textContent = "Enregistrer";
+    $("#c-cancel").hidden = false;
+    cStatus.textContent = "";
+    cForm.elements.cmd.focus();
+    cForm.scrollIntoView({ block: "center" });
+  }
+  $("#c-cancel").addEventListener("click", resetCommandForm);
+
+  cForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    cStatus.className = "form__status";
+    cStatus.textContent = "";
+    if (!cForm.reportValidity()) return;
+    var body = { platform: cForm.elements.platform.value, cat: cForm.elements.cat.value, cmd: cForm.elements.cmd.value, descr: cForm.elements.descr.value, example: cForm.elements.example.value };
+    var btn = $("#c-submit");
+    btn.disabled = true;
+    var req = cmdState.editing ? api("PUT", "/api/commands/" + encodeURIComponent(cmdState.editing), body) : api("POST", "/api/commands", body);
+    req.then(function () {
+      var p = body.platform;
+      resetCommandForm();
+      setPlatform(p);
+      return loadCommands().then(function () {
+        cStatus.className = "form__status form__status--ok";
+        cStatus.textContent = "Commande enregistrée.";
+      });
+    }, function (err) {
+      if (err.status !== 401) cStatus.textContent = err.message || "Enregistrement impossible.";
+    }).then(function () { btn.disabled = false; });
+  });
+
+  /* ---------- Organigramme ---------- */
+  var KIND_CLASS = { founder: "member--founder", manager: "member--manager", admin: "member--admin", mod: "member--mod", other: "member--other" };
+  var KIND_LABEL = { founder: "rose", manager: "violet", admin: "cyan", mod: "vert", other: "gris" };
+  var orgState = { items: [], editing: null };
+  var mForm = $("#member-form"), mStatus = $("#m-status");
+
+  function orgLink() { var d = el("div", "org__link"); d.setAttribute("aria-hidden", "true"); return d; }
+
+  function orgNode(m) {
+    var li = el("li", "member " + (KIND_CLASS[m.kind] || "member--other") + " org__node");
+    var av = el("span", "member__avatar", String(m.name || "?").charAt(0).toUpperCase());
+    av.setAttribute("aria-hidden", "true");
+    li.appendChild(av);
+    var box = document.createElement("div");
+    box.appendChild(el("span", "member__name", m.name));
+    box.appendChild(el("span", "member__role", m.role));
+    li.appendChild(box);
+    return li;
+  }
+
+  function renderOrg() {
+    var chart = $("#org-chart"), hint = $("#org-hint");
+    clear(chart);
+    hint.textContent = "";
+    if (!orgState.items.length) {
+      hint.textContent = isAdmin() ? "L'organigramme est vide. Ajoutez des membres avec le formulaire ci-dessous." : "L'organigramme est vide pour le moment.";
+      $("#org-summary").textContent = "";
+      return;
+    }
+    var tiers = [], byTier = {};
+    orgState.items.forEach(function (m) { if (!byTier[m.tier]) { byTier[m.tier] = []; tiers.push(m.tier); } byTier[m.tier].push(m); });
+    tiers.sort(function (a, b) { return a - b; });
+
+    // Niveaux consécutifs du même groupe = un seul encadré.
+    var groups = [];
+    tiers.forEach(function (t) {
+      var label = byTier[t][0].grp, last = groups[groups.length - 1];
+      if (last && last.label === label) last.tiers.push(t); else groups.push({ label: label, tiers: [t] });
+    });
+
+    groups.forEach(function (g, gi) {
+      if (gi) chart.appendChild(orgLink());
+      var box = el("div", "org__group");
+      box.setAttribute("data-label", g.label);
+      g.tiers.forEach(function (t, ti) {
+        if (ti) box.appendChild(orgLink());
+        var list = byTier[t], n = list.length;
+        var row = el("ul", "org__row");
+        if (n > 1 && n <= 5) {
+          row.className += " org__row--multi";
+          row.style.setProperty("--n", String(n));
+          row.style.setProperty("--w", Math.min(260, Math.floor((800 - (n - 1) * 16) / n)) + "px");
+        } else if (n > 5) row.className += " org__row--wrap";
+        list.forEach(function (m) { row.appendChild(orgNode(m)); });
+        box.appendChild(row);
+      });
+      chart.appendChild(box);
+    });
+
+    $("#org-summary").textContent = "Hiérarchie, du haut vers le bas : " + tiers.map(function (t) {
+      return byTier[t].map(function (m) { return m.name + " (" + m.role + ")"; }).join(", ");
+    }).join(" ; puis ") + ".";
+  }
+
+  function renderMembers() {
+    var ul = $("#m-list"); clear(ul);
+    var dl = $("#m-grps"); clear(dl);
+    var seen = {};
+    orgState.items.forEach(function (m) {
+      if (!seen[m.grp]) { seen[m.grp] = 1; var o = document.createElement("option"); o.value = m.grp; dl.appendChild(o); }
+      var li = el("li", "manage__item");
+      var info = el("div", "manage__info");
+      info.appendChild(el("strong", null, m.name));
+      info.appendChild(el("span", "manage__meta", m.role + " · " + m.grp + " · niveau " + m.tier + " · carte " + (KIND_LABEL[m.kind] || "grise")));
+      li.appendChild(info);
+      var actions = el("div", "manage__actions");
+      actions.appendChild(linkButton("Modifier", function () { startEditMember(m); }));
+      actions.appendChild(linkButton("Retirer", function () {
+        if (!window.confirm("Retirer « " + m.name + " » de l'organigramme ?")) return;
+        api("DELETE", "/api/org/" + encodeURIComponent(m.id)).then(loadOrg, function (e) { mStatus.textContent = e.message || ""; });
+      }, true));
+      li.appendChild(actions);
+      ul.appendChild(li);
+    });
+  }
+
+  function loadOrg() {
+    return api("GET", "/api/org").then(function (data) {
+      orgState.items = data.org;
+      renderOrg(); renderMembers();
+    }, function (e) { if (e.status !== 401) $("#org-hint").textContent = e.message || ""; });
+  }
+
+  function resetMemberForm() {
+    mForm.reset();
+    orgState.editing = null;
+    $("#m-form-title").textContent = "Gérer l'organigramme";
+    $("#m-submit").textContent = "Ajouter";
+    $("#m-cancel").hidden = true;
+  }
+  function startEditMember(m) {
+    orgState.editing = m.id;
+    var f = mForm.elements;
+    f.name.value = m.name; f.role.value = m.role; f.grp.value = m.grp; f.tier.value = m.tier; f.kind.value = m.kind; f.position.value = m.position;
+    $("#m-form-title").textContent = "Modifier un membre";
+    $("#m-submit").textContent = "Enregistrer";
+    $("#m-cancel").hidden = false;
+    mStatus.textContent = "";
+    f.name.focus();
+    mForm.scrollIntoView({ block: "center" });
+  }
+  $("#m-cancel").addEventListener("click", resetMemberForm);
+
+  mForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    mStatus.className = "form__status";
+    mStatus.textContent = "";
+    if (!mForm.reportValidity()) return;
+    var f = mForm.elements;
+    var body = { name: f.name.value, role: f.role.value, grp: f.grp.value, tier: f.tier.value, kind: f.kind.value, position: f.position.value };
+    var btn = $("#m-submit");
+    btn.disabled = true;
+    var req = orgState.editing ? api("PUT", "/api/org/" + encodeURIComponent(orgState.editing), body) : api("POST", "/api/org", body);
+    req.then(function () {
+      resetMemberForm();
+      return loadOrg().then(function () {
+        mStatus.className = "form__status form__status--ok";
+        mStatus.textContent = "Organigramme mis à jour.";
+      });
+    }, function (err) {
+      if (err.status !== 401) mStatus.textContent = err.message || "Enregistrement impossible.";
     }).then(function () { btn.disabled = false; });
   });
 
