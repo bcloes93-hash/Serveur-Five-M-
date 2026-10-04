@@ -1,0 +1,50 @@
+-- PROPOSITION de barème de sanctions, à relire et adapter par l'équipe avant usage.
+-- Elle reprend les infractions du règlement public ; les paliers et les durées sont des suggestions courantes.
+-- À exécuter UNE SEULE FOIS, après schema.sql (le refaire créerait des doublons).
+-- Ensuite tout se modifie depuis le panel : Sanctions → Barème (compte Administration).
+--
+-- Paliers : du 1er au dernier, selon le nombre de récidives.
+-- type : avertissement | expulsion | ban_temp (durée dans detail) | ban_def | autre (texte dans detail)
+
+INSERT INTO penalties (cat, name, steps, notes) VALUES
+  ('Comportement', 'Insultes, harcèlement',
+   '[{"type":"avertissement","detail":""},{"type":"ban_temp","detail":"3 jours"},{"type":"ban_temp","detail":"14 jours"},{"type":"ban_def","detail":""}]',
+   'Propos haineux ou discriminatoires graves : bannissement définitif immédiat.'),
+  ('Comportement', 'Troll, perturbation volontaire',
+   '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"3 jours"},{"type":"ban_temp","detail":"7 jours"}]',
+   'Tolérance zéro, en particulier pour les nouveaux joueurs.'),
+  ('Comportement', 'Refus d''obéir au staff en jeu',
+   '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"3 jours"}]',
+   'La contestation se fait ensuite, calmement, en contactant le staff sur le Discord.'),
+  ('Comportement', 'Compte multiple',
+   '[{"type":"avertissement","detail":"suppression du compte en trop"},{"type":"ban_temp","detail":"7 jours"}]',
+   'Un seul compte par joueur, sauf accord explicite du staff.'),
+
+  ('Roleplay', 'RDM (Random Deathmatch)',
+   '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"3 jours"},{"type":"ban_temp","detail":"7 jours"}]',
+   'Tuer ou agresser un joueur sans raison RP valable.'),
+  ('Roleplay', 'VDM (Vehicle Deathmatch)',
+   '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"3 jours"},{"type":"ban_temp","detail":"7 jours"}]',
+   'Utiliser un véhicule comme arme sans raison RP valable.'),
+  ('Roleplay', 'FearRP (valeur de la vie)',
+   '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"1 jour"}]',
+   'Ne pas réagir de façon réaliste face à une menace sérieuse.'),
+  ('Roleplay', 'Metagaming',
+   '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"3 jours"}]',
+   'Utiliser en jeu une information obtenue hors du RP.'),
+  ('Roleplay', 'Powergaming',
+   '[{"type":"avertissement","detail":""},{"type":"expulsion","detail":""},{"type":"ban_temp","detail":"3 jours"}]',
+   'Imposer ses actions à un autre joueur ou réaliser des actions irréalistes.'),
+  ('Roleplay', 'Combat logging',
+   '[{"type":"avertissement","detail":""},{"type":"ban_temp","detail":"1 jour"},{"type":"ban_temp","detail":"7 jours"}]',
+   'Se déconnecter pour éviter une scène RP en cours.'),
+
+  ('Triche et économie', 'Abus de bug',
+   '[{"type":"avertissement","detail":"retrait des gains"},{"type":"ban_temp","detail":"7 jours"},{"type":"ban_def","detail":""}]',
+   'Retirer tous les gains obtenus grâce au bug. Un bug doit être signalé au staff.'),
+  ('Triche et économie', 'Triche, mods non autorisés',
+   '[{"type":"ban_def","detail":""}]',
+   'Bannissement définitif immédiat, sans avertissement.'),
+  ('Triche et économie', 'Commerce contre argent réel',
+   '[{"type":"ban_def","detail":""}]',
+   'Interdit par le règlement : bannissement définitif immédiat.');

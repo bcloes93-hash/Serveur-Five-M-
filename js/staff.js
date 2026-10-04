@@ -71,7 +71,7 @@
       t.tabIndex = on ? 0 : -1;
     });
     ["home", "sanctions", "commands", "org", "audit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
-    if (name === "sanctions") loadSanctions();
+    if (name === "sanctions") setSub(subView);
     if (name === "commands") { loadCommands(); if (!cmdState.editing) cForm.elements.platform.value = cmdState.platform; }
     if (name === "org") loadOrg();
     if (name === "audit") loadAudit();
@@ -191,6 +191,186 @@
     b.addEventListener("click", onClick);
     return b;
   }
+
+  /* ---------- Barème des sanctions ---------- */
+  var STEP_LABEL = { avertissement: "Avertissement", expulsion: "Expulsion", ban_temp: "Ban", ban_def: "Ban définitif", autre: "" };
+  var STEP_OPTIONS = [["avertissement", "Avertissement"], ["expulsion", "Expulsion"], ["ban_temp", "Ban temporaire"], ["ban_def", "Ban définitif"], ["autre", "Autre"]];
+  var ORD = ["1ʳᵉ fois", "2ᵉ fois", "3ᵉ fois", "4ᵉ fois", "5ᵉ fois"];
+  var penState = { items: [], editing: null };
+  var pList = $("#p-list"), pCount = $("#p-count"), pSearch = $("#p-search");
+  var pForm = $("#penalty-form"), pStatus = $("#p-status");
+
+  function stepText(s) {
+    if (s.type === "ban_temp") return "Ban " + s.detail;
+    if (s.type === "autre") return s.detail;
+    return STEP_LABEL[s.type] + (s.detail ? " + " + s.detail : "");
+  }
+
+  function renderPenalty(p) {
+    var li = el("li", "penalty");
+    li.appendChild(el("h4", "penalty__name", p.name));
+    var ol = el("ol", "ladder");
+    p.steps.forEach(function (s, i) {
+      var type = STEP_LABEL.hasOwnProperty(s.type) ? s.type : "autre";
+      var step = el("li", "ladder__step ladder__step--" + type);
+      step.appendChild(el("span", "ladder__n", p.steps.length === 1 ? "Immédiat" : ORD[i]));
+      step.appendChild(el("span", "ladder__what", stepText(s)));
+      ol.appendChild(step);
+    });
+    li.appendChild(ol);
+    if (p.notes) li.appendChild(el("p", "penalty__notes", p.notes));
+
+    var actions = el("div", "penalty__actions");
+    var note = el("button", "btn btn--small btn--ghost", "Noter dans le journal");
+    note.type = "button";
+    note.addEventListener("click", function () {
+      go("sanctions"); setSub("journal");
+      $("#s-reason").value = p.name;
+      $("#s-player").focus();
+    });
+    actions.appendChild(note);
+    if (isAdmin()) {
+      actions.appendChild(linkButton("Modifier", function () { startEditPenalty(p); }));
+      actions.appendChild(linkButton("Supprimer", function () {
+        if (!window.confirm("Supprimer « " + p.name + " » du barème ?")) return;
+        api("DELETE", "/api/penalties/" + encodeURIComponent(p.id)).then(loadPenalties, function (e) { pCount.textContent = e.message || ""; });
+      }, true));
+    }
+    li.appendChild(actions);
+    return li;
+  }
+
+  function renderPenalties() {
+    var q = pSearch.value.trim().toLowerCase();
+    var shown = penState.items.filter(function (p) {
+      var hay = p.name + " " + p.cat + " " + p.notes + " " + p.steps.map(stepText).join(" ");
+      return !q || hay.toLowerCase().indexOf(q) !== -1;
+    });
+    clear(pList);
+    if (!penState.items.length) {
+      pCount.textContent = "";
+      pList.appendChild(el("p", "cmd__empty", isAdmin() ? "Le barème est vide. Ajoutez une infraction avec le formulaire ci-dessous." : "Le barème est vide pour le moment."));
+      return;
+    }
+    pCount.textContent = shown.length + (shown.length > 1 ? " infractions" : " infraction");
+    if (!shown.length) { pList.appendChild(el("p", "cmd__empty", "Aucune infraction ne correspond à votre recherche.")); return; }
+    var cats = [], byCat = {};
+    shown.forEach(function (p) { if (!byCat[p.cat]) { byCat[p.cat] = []; cats.push(p.cat); } byCat[p.cat].push(p); });
+    cats.forEach(function (cat) {
+      var group = el("section", "cmd__group");
+      group.appendChild(el("h3", "cmd__cat", cat));
+      var ul = el("ul", "cmd__items");
+      byCat[cat].forEach(function (p) { ul.appendChild(renderPenalty(p)); });
+      group.appendChild(ul);
+      pList.appendChild(group);
+    });
+  }
+
+  function loadPenalties() {
+    return api("GET", "/api/penalties").then(function (data) {
+      penState.items = data.penalties;
+      renderPenalties();
+      var dl = $("#p-cats"); clear(dl);
+      var seen = {};
+      penState.items.forEach(function (p) { if (!seen[p.cat]) { seen[p.cat] = 1; var o = document.createElement("option"); o.value = p.cat; dl.appendChild(o); } });
+    }, function (e) { if (e.status !== 401) pCount.textContent = e.message || ""; });
+  }
+  pSearch.addEventListener("input", renderPenalties);
+
+  // Éditeur de paliers : 5 lignes (type + précision), la 1re est obligatoire.
+  function syncStepRow(i) {
+    var sel = pForm.elements["stype" + i], inp = pForm.elements["sdetail" + i], t = sel.value;
+    inp.disabled = t === "" || t === "ban_def";
+    inp.required = t === "ban_temp" || t === "autre";
+    if (inp.disabled) inp.value = "";
+    inp.placeholder = t === "ban_temp" ? "Durée (obligatoire), ex. 3 jours" : t === "autre" ? "Sanction (obligatoire)" : t === "avertissement" || t === "expulsion" ? "Précision (facultatif)" : "";
+  }
+  (function buildStepsEditor() {
+    var box = $("#p-steps");
+    for (var i = 0; i < 5; i++) (function (i) {
+      var row = el("div", "steprow");
+      var lab = el("label", "steprow__n", ORD[i]);
+      lab.setAttribute("for", "p-type-" + i);
+      var sel = document.createElement("select");
+      sel.id = "p-type-" + i; sel.name = "stype" + i;
+      if (i > 0) { var none = document.createElement("option"); none.value = ""; none.textContent = "— aucun palier"; sel.appendChild(none); }
+      STEP_OPTIONS.forEach(function (o) { var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op); });
+      var inp = document.createElement("input");
+      inp.type = "text"; inp.id = "p-detail-" + i; inp.name = "sdetail" + i; inp.maxLength = 40; inp.autocomplete = "off";
+      inp.setAttribute("aria-label", "Précision du palier " + (i + 1));
+      sel.addEventListener("change", function () { syncStepRow(i); });
+      row.appendChild(lab); row.appendChild(sel); row.appendChild(inp);
+      box.appendChild(row);
+    })(i);
+    for (var j = 0; j < 5; j++) syncStepRow(j);
+  })();
+
+  function collectSteps() {
+    var steps = [];
+    for (var i = 0; i < 5; i++) {
+      var t = pForm.elements["stype" + i].value;
+      if (t) steps.push({ type: t, detail: pForm.elements["sdetail" + i].value });
+    }
+    return steps;
+  }
+
+  function resetPenaltyForm() {
+    pForm.reset();
+    for (var i = 0; i < 5; i++) syncStepRow(i);
+    penState.editing = null;
+    $("#p-form-title").textContent = "Ajouter une infraction au barème";
+    $("#p-submit").textContent = "Ajouter";
+    $("#p-cancel").hidden = true;
+  }
+  function startEditPenalty(p) {
+    penState.editing = p.id;
+    pForm.elements.infraction.value = p.name; pForm.elements.cat.value = p.cat; pForm.elements.notes.value = p.notes;
+    for (var i = 0; i < 5; i++) {
+      var s = p.steps[i];
+      pForm.elements["stype" + i].value = s ? s.type : (i === 0 ? "avertissement" : "");
+      pForm.elements["sdetail" + i].value = s ? s.detail : "";
+      syncStepRow(i);
+      if (s) pForm.elements["sdetail" + i].value = s.detail;   // syncStepRow vide la précision d'un palier désactivé : on la remet
+    }
+    $("#p-form-title").textContent = "Modifier l'infraction";
+    $("#p-submit").textContent = "Enregistrer";
+    $("#p-cancel").hidden = false;
+    pStatus.textContent = "";
+    pForm.elements.infraction.focus();
+    pForm.scrollIntoView({ block: "center" });
+  }
+  $("#p-cancel").addEventListener("click", resetPenaltyForm);
+
+  pForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    pStatus.className = "form__status";
+    pStatus.textContent = "";
+    if (!pForm.reportValidity()) return;
+    var body = { name: pForm.elements.infraction.value, cat: pForm.elements.cat.value, notes: pForm.elements.notes.value, steps: collectSteps() };
+    var btn = $("#p-submit");
+    btn.disabled = true;
+    var req = penState.editing ? api("PUT", "/api/penalties/" + encodeURIComponent(penState.editing), body) : api("POST", "/api/penalties", body);
+    req.then(function () {
+      resetPenaltyForm();
+      return loadPenalties().then(function () {
+        pStatus.className = "form__status form__status--ok";
+        pStatus.textContent = "Barème mis à jour.";
+      });
+    }, function (err) {
+      if (err.status !== 401) pStatus.textContent = err.message || "Enregistrement impossible.";
+    }).then(function () { btn.disabled = false; });
+  });
+
+  /* ---------- Sous-onglets de « Sanctions » : Barème / Journal ---------- */
+  var subView = "penalties";
+  function setSub(name) {
+    subView = name;
+    $$(".seg__btn[data-sub]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-sub") === name)); });
+    $("#sub-penalties").hidden = name !== "penalties";
+    $("#sub-journal").hidden = name !== "journal";
+    if (name === "penalties") loadPenalties(); else loadSanctions();
+  }
+  $$(".seg__btn[data-sub]").forEach(function (b) { b.addEventListener("click", function () { setSub(b.getAttribute("data-sub")); }); });
 
   /* ---------- Commandes (Discord / FiveM) ---------- */
   var cmdState = { platform: "discord", items: [], editing: null };

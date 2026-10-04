@@ -100,8 +100,8 @@
             <p class="tabpanel__lead">Voici les outils à votre disposition. D'autres seront ajoutés au fil du temps.</p>
             <div class="cards staff__cards">
               <article class="card">
-                <h3>Journal de sanctions</h3>
-                <p>Enregistrez et retrouvez les avertissements, expulsions et bannissements.</p>
+                <h3>Sanctions</h3>
+                <p>Le barème des sanctions à appliquer et le journal des sanctions enregistrées.</p>
                 <button class="btn btn--primary btn--small" type="button" data-go="sanctions">Ouvrir</button>
               </article>
               <article class="card">
@@ -130,6 +130,59 @@
 
           <!-- Sanctions -->
           <section id="view-sanctions" role="tabpanel" aria-labelledby="stab-sanctions" hidden>
+            <div class="seg staff__sub" role="group" aria-label="Section Sanctions">
+              <button class="seg__btn" type="button" data-sub="penalties" aria-pressed="true">Barème</button>
+              <button class="seg__btn" type="button" data-sub="journal" aria-pressed="false">Journal</button>
+            </div>
+
+            <!-- Barème des sanctions -->
+            <div id="sub-penalties">
+              <div class="panelbox">
+                <h2 class="tabpanel__title">Barème des sanctions</h2>
+                <p class="tabpanel__lead">La sanction à appliquer pour chaque cas, selon le nombre de récidives. « Noter dans le journal » reprend l'infraction dans le journal.</p>
+                <div class="field staff__search">
+                  <label for="p-search">Rechercher une infraction</label>
+                  <input id="p-search" type="search" maxlength="60" placeholder="Infraction ou mot-clé" autocomplete="off">
+                </div>
+                <p class="cmd__count" id="p-count" aria-live="polite"></p>
+                <div class="cmd__list" id="p-list"></div>
+              </div>
+
+              <div class="panelbox" data-admin hidden>
+                <h2 class="tabpanel__title" id="p-form-title">Ajouter une infraction au barème</h2>
+                <p class="tabpanel__lead">Réservé à l'administration. Indiquez les paliers dans l'ordre : le 1ᵉʳ s'applique à la première infraction, le 2ᵉ à la récidive, etc.</p>
+                <form class="form" id="penalty-form" novalidate>
+                  <div class="form__body">
+                    <div class="form__row">
+                      <div class="field">
+                        <label for="p-name">Infraction <span class="req" aria-hidden="true">*</span></label>
+                        <input id="p-name" name="infraction" type="text" required maxlength="100" autocomplete="off" placeholder="ex. Nom de l'infraction">
+                      </div>
+                      <div class="field">
+                        <label for="p-cat">Catégorie</label>
+                        <input id="p-cat" name="cat" type="text" maxlength="40" list="p-cats" autocomplete="off" placeholder="ex. Roleplay">
+                        <datalist id="p-cats"></datalist>
+                      </div>
+                    </div>
+                    <fieldset class="steps-editor" id="p-steps">
+                      <legend>Paliers de sanction <span class="req" aria-hidden="true">*</span></legend>
+                    </fieldset>
+                    <div class="field">
+                      <label for="p-notes">Précisions (facultatif)</label>
+                      <textarea id="p-notes" name="notes" rows="2" maxlength="300" placeholder="Conditions, cas aggravants, immédiat…"></textarea>
+                    </div>
+                    <div class="form__actions">
+                      <button class="btn btn--primary" type="submit" id="p-submit">Ajouter</button>
+                      <button class="btn btn--ghost" type="button" id="p-cancel" hidden>Annuler la modification</button>
+                    </div>
+                    <p class="form__status" id="p-status" role="status" aria-live="polite"></p>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- Journal des sanctions -->
+            <div id="sub-journal" hidden>
             <div class="panelbox">
               <h2 class="tabpanel__title">Nouvelle sanction</h2>
               <form class="form" id="sanction-form" novalidate>
@@ -179,6 +232,7 @@
               </div>
               <p class="staff__hint" id="sanction-hint" aria-live="polite"></p>
               <ul class="sanctions" id="sanction-list"></ul>
+            </div>
             </div>
           </section>
 

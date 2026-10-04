@@ -1,6 +1,6 @@
 /**
  * Panel staff de Santos Legacy RP (Cloudflare Worker).
- * Contenu protégé : journal de sanctions, commandes (Discord / FiveM), organigramme, journal d'activité.
+ * Contenu protégé : journal de sanctions, barème des sanctions, commandes (Discord / FiveM), organigramme, journal d'activité.
  *
  * Ce programme est le « serveur » du panel : il vérifie que la personne est bien dans le Discord
  * ET possède un rôle staff, puis protège toutes les données (journal de sanctions…).
@@ -31,6 +31,8 @@ const RANK = { mod: 1, admin: 2 };
 const JWT_HEAD = { alg: "HS256", typ: "JWT" };
 const PLATFORMS = ["discord", "fivem"];
 const KINDS = ["founder", "manager", "admin", "mod", "other"];
+const STEP_TYPES = ["avertissement", "expulsion", "ban_temp", "ban_def", "autre"];
+const MAX_STEPS = 5;
 const MAX_BODY_BYTES = 5000;
 const DISCORD = "https://discord.com/api/v10";
 
@@ -111,6 +113,34 @@ function parseCommand(body) {
   if (!value.cmd) return { error: "La commande est obligatoire." };
   if (!value.descr) return { error: "La description est obligatoire." };
   return { value };
+}
+
+/** Paliers d'un barème : 1 à 5 étapes { type, detail }. Un ban temporaire exige une durée, « autre » exige un texte. */
+function parsePenalty(body) {
+  const value = { name: oneLine(body.name, 100), cat: oneLine(body.cat, 40) || "Général", notes: clean(body.notes, 300), steps: [] };
+  if (!value.name) return { error: "Le nom de l'infraction est obligatoire." };
+  if (!Array.isArray(body.steps) || !body.steps.length) return { error: "Ajoutez au moins un palier de sanction." };
+  if (body.steps.length > MAX_STEPS) return { error: `Maximum ${MAX_STEPS} paliers.` };
+  for (const [i, raw] of body.steps.entries()) {
+    const step = raw && typeof raw === "object" ? raw : {};
+    const type = String(step.type || "");
+    const detail = oneLine(step.detail, 40);
+    if (!STEP_TYPES.includes(type)) return { error: `Palier ${i + 1} : type de sanction invalide.` };
+    if (type === "ban_temp" && !detail) return { error: `Palier ${i + 1} : la durée est obligatoire pour un bannissement temporaire.` };
+    if (type === "autre" && !detail) return { error: `Palier ${i + 1} : précisez la sanction.` };
+    value.steps.push({ type, detail: type === "ban_def" ? "" : detail });
+  }
+  return { value };
+}
+
+/** Relit les paliers stockés (JSON) en écartant tout ce qui ne serait pas valide. */
+function readSteps(json) {
+  try {
+    const list = JSON.parse(json);
+    return (Array.isArray(list) ? list : []).slice(0, MAX_STEPS)
+      .filter((s) => s && STEP_TYPES.includes(s.type))
+      .map((s) => ({ type: s.type, detail: oneLine(s.detail, 40) }));
+  } catch { return []; }
 }
 
 function parseMember(body) {
@@ -312,6 +342,15 @@ async function api(request, env, url) {
 
   /* --- Commandes et organigramme : lecture pour tout le staff, écriture pour l'administration --- */
   const RESOURCES = {
+    penalties: {
+      list: "SELECT id, cat, name, steps, notes FROM penalties ORDER BY cat COLLATE NOCASE, name COLLATE NOCASE, id",
+      shape: (rows) => rows.map((r) => ({ ...r, steps: readSteps(r.steps) })),
+      parse: parsePenalty, label_of: (v) => v.name,
+      insert: ["INSERT INTO penalties (cat, name, steps, notes) VALUES (?, ?, ?, ?)", (v) => [v.cat, v.name, JSON.stringify(v.steps), v.notes]],
+      update: ["UPDATE penalties SET cat = ?, name = ?, steps = ?, notes = ? WHERE id = ?", (v, id) => [v.cat, v.name, JSON.stringify(v.steps), v.notes, id]],
+      name: "SELECT name AS label FROM penalties WHERE id = ?", remove: "DELETE FROM penalties WHERE id = ?",
+      actions: { add: "barème : cas ajouté", edit: "barème : cas modifié", del: "barème : cas supprimé" },
+    },
     commands: {
       list: "SELECT id, platform, cat, cmd, descr, example FROM commands ORDER BY platform, cat COLLATE NOCASE, id",
       parse: parseCommand, label: "commande", label_of: (v) => v.cmd,
@@ -330,13 +369,13 @@ async function api(request, env, url) {
     },
   };
 
-  const listMatch = /^\/api\/(commands|org)$/.exec(path);
-  const itemMatch = /^\/api\/(commands|org)\/(\d{1,12})$/.exec(path);
+  const listMatch = /^\/api\/(commands|org|penalties)$/.exec(path);
+  const itemMatch = /^\/api\/(commands|org|penalties)\/(\d{1,12})$/.exec(path);
   const res = RESOURCES[(listMatch || itemMatch || [])[1]];
 
   if (res && listMatch && request.method === "GET") {
     const { results } = await env.DB.prepare(res.list).all();
-    return reply({ [listMatch[1]]: results });
+    return reply({ [listMatch[1]]: res.shape ? res.shape(results) : results });
   }
 
   if (res && (listMatch ? request.method === "POST" : ["PUT", "DELETE"].includes(request.method))) {

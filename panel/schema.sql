@@ -48,3 +48,13 @@ CREATE TABLE IF NOT EXISTS org (
   kind        TEXT NOT NULL DEFAULT 'other', -- founder | manager | admin | mod | other (couleur de la carte)
   position    INTEGER NOT NULL DEFAULT 0     -- ordre dans le niveau (facultatif)
 );
+
+-- Barème des sanctions : pour chaque infraction, les paliers à appliquer selon les récidives.
+-- Visible par le staff connecté, modifiable par l'administration.
+CREATE TABLE IF NOT EXISTS penalties (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  cat         TEXT NOT NULL DEFAULT 'Général',   -- regroupement, ex. Comportement, Roleplay, Triche
+  name        TEXT NOT NULL,                     -- l'infraction, ex. RDM
+  steps       TEXT NOT NULL,                     -- paliers en JSON : [{"type":"avertissement","detail":""}, ...] (1 à 5)
+  notes       TEXT NOT NULL DEFAULT ''           -- précisions : conditions, cas aggravants…
+);

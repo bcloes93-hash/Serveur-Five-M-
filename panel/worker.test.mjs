@@ -443,3 +443,110 @@ test("organigramme pré-rempli avec seed.sql : l'équipe actuelle dans le bon or
   assert.deepEqual(rows.map((r) => `${r.tier}:${r.name}`), ["1:Jaguuar_", "2:Fumeurdefrap", "3:Taalback", "3:Isar", "3:Trafalgar", "4:Moncef"]);
   assert.deepEqual([...new Set(rows.map((r) => r.grp))], ["Direction", "Administration", "Modération"]);
 });
+
+/* ---------- Barème des sanctions ---------- */
+
+const penaltyBody = (over = {}) => ({
+  cat: "Roleplay", name: "RDM", notes: "Tuer sans raison RP.",
+  steps: [{ type: "avertissement", detail: "" }, { type: "expulsion", detail: "" }, { type: "ban_temp", detail: "3 jours" }, { type: "ban_def", detail: "" }],
+  ...over,
+});
+
+test("barème : refusé sans connexion ; le staff lit, seule l'administration modifie ; tout est journalisé", async () => {
+  const env = makeEnv();
+  assert.equal((await call(env, "/api/penalties")).status, 401);
+  assert.equal((await call(env, "/api/penalties", { method: "POST", body: penaltyBody() })).status, 401);
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+
+  assert.equal((await send(env, "/api/penalties", mod, "POST", penaltyBody())).status, 403);
+  const { id } = await (await send(env, "/api/penalties", admin, "POST", penaltyBody())).json();
+  assert.ok(id > 0);
+
+  const list = (await (await call(env, "/api/penalties", { token: mod })).json()).penalties;
+  assert.equal(list.length, 1, "un modérateur peut lire");
+  assert.deepEqual(list[0].steps, penaltyBody().steps, "les paliers reviennent sous forme de tableau, dans l'ordre");
+  assert.equal(list[0].name, "RDM");
+
+  assert.equal((await send(env, `/api/penalties/${id}`, mod, "PUT", penaltyBody({ name: "X" }))).status, 403);
+  assert.equal((await send(env, `/api/penalties/${id}`, mod, "DELETE")).status, 403);
+  assert.equal((await send(env, `/api/penalties/${id}`, admin, "PUT", penaltyBody({ name: "RDM modifié", steps: [{ type: "ban_def" }] }))).status, 200);
+  const after = (await (await call(env, "/api/penalties", { token: admin })).json()).penalties[0];
+  assert.equal(after.name, "RDM modifié"); assert.deepEqual(after.steps, [{ type: "ban_def", detail: "" }]);
+  assert.equal((await send(env, `/api/penalties/${id}`, admin, "DELETE")).status, 200);
+  assert.equal((await send(env, `/api/penalties/${id}`, admin, "DELETE")).status, 404);
+  assert.equal((await send(env, "/api/penalties/99999", admin, "PUT", penaltyBody())).status, 404);
+
+  const { audit } = await (await call(env, "/api/audit", { token: admin })).json();
+  assert.deepEqual(audit.slice(0, 3).map((a) => a.action), ["barème : cas supprimé", "barème : cas modifié", "barème : cas ajouté"]);
+});
+
+test("barème : validation des paliers", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const post = (b) => send(env, "/api/penalties", admin, "POST", b);
+  const bad = [
+    { name: " " }, { steps: [] }, { steps: undefined }, { steps: "avertissement" }, { steps: null },
+    { steps: Array.from({ length: 6 }, () => ({ type: "avertissement" })) },
+    { steps: [{ type: "pirate" }] }, { steps: [{}] }, { steps: ["avertissement"] }, { steps: [null] },
+    { steps: [{ type: "avertissement" }, { type: "ban_temp", detail: "  " }] },
+    { steps: [{ type: "autre" }] },
+  ];
+  for (const b of bad) assert.equal((await post(penaltyBody(b))).status, 400, JSON.stringify(b));
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM penalties").get().n, 0);
+
+  assert.equal((await post(penaltyBody({ steps: Array.from({ length: 5 }, () => ({ type: "expulsion" })) }))).status, 201, "5 paliers acceptés");
+  await post(penaltyBody({ cat: "", name: "N", steps: [{ type: "ban_def", detail: "ignoré" }, { type: "autre", detail: "  Retrait des gains  " }, { type: "avertissement", detail: "x".repeat(200) }] }));
+  const row = (await (await call(env, "/api/penalties", { token: admin })).json()).penalties.find((p) => p.name === "N");
+  assert.equal(row.cat, "Général");
+  assert.deepEqual(row.steps.map((s) => s.type), ["ban_def", "autre", "avertissement"], "ordre conservé");
+  assert.equal(row.steps[0].detail, "", "durée ignorée pour un ban définitif");
+  assert.equal(row.steps[1].detail, "Retrait des gains", "texte nettoyé");
+  assert.equal(row.steps[2].detail.length, 40, "texte tronqué");
+});
+
+test("barème : tri par catégorie puis par nom ; ligne corrompue en base sans casser la liste", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const post = (b) => send(env, "/api/penalties", admin, "POST", b);
+  await post(penaltyBody({ cat: "Roleplay", name: "Zèbre" }));
+  await post(penaltyBody({ cat: "comportement", name: "Beta" }));
+  await post(penaltyBody({ cat: "Roleplay", name: "alpha" }));
+  env.DB.raw.prepare("INSERT INTO penalties (cat, name, steps) VALUES ('Z', 'Cassé', 'pas du json')").run();
+  env.DB.raw.prepare("INSERT INTO penalties (cat, name, steps) VALUES ('Z', 'Piraté', ?)").run('[{"type":"<script>"},{"type":"ban_def","detail":"ok"}]');
+  const res = await call(env, "/api/penalties", { token: admin });
+  assert.equal(res.status, 200);
+  const list = (await res.json()).penalties;
+  assert.deepEqual(list.map((p) => p.name), ["Beta", "alpha", "Zèbre", "Cassé", "Piraté"]);
+  assert.deepEqual(list[3].steps, []);
+  assert.deepEqual(list[4].steps, [{ type: "ban_def", detail: "ok" }], "les paliers de type inconnu sont écartés, les autres conservés");
+});
+
+test("barème : textes stockés tels quels (SQL et HTML inoffensifs côté serveur)", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const evil = "'); DROP TABLE penalties; --";
+  assert.equal((await send(env, "/api/penalties", admin, "POST", penaltyBody({ name: evil, notes: "<img src=x onerror=alert(1)>", steps: [{ type: "autre", detail: "<b>x</b>" }] }))).status, 201);
+  const row = (await (await call(env, "/api/penalties", { token: admin })).json()).penalties[0];
+  assert.equal(row.name, evil); assert.equal(row.notes, "<img src=x onerror=alert(1)>"); assert.equal(row.steps[0].detail, "<b>x</b>");
+});
+
+test("barème proposé (seed-bareme.sql) : tous les cas et paliers sont valides", async () => {
+  const env = makeEnv();
+  env.DB.raw.exec(readFileSync(new URL("./seed-bareme.sql", import.meta.url), "utf8"));
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const list = (await (await call(env, "/api/penalties", { token: mod })).json()).penalties;
+  assert.equal(list.length, 13);
+  assert.deepEqual([...new Set(list.map((p) => p.cat))].sort(), ["Comportement", "Roleplay", "Triche et économie"]);
+  assert.equal(new Set(list.map((p) => p.name)).size, 13, "pas de doublon");
+  const stored = Object.fromEntries(env.DB.raw.prepare("SELECT name, steps FROM penalties").all().map((r) => [r.name, JSON.parse(r.steps)]));
+  for (const p of list) {
+    const raw = stored[p.name];
+    assert.ok(raw.length >= 1 && raw.length <= 5, p.name);
+    assert.deepEqual(p.steps.map((s) => s.type), raw.map((s) => s.type), `${p.name} : aucun palier écarté`);
+    for (const s of p.steps) if (s.type === "ban_temp") assert.ok(s.detail, `${p.name} : durée du ban temporaire`);
+  }
+  // le barème proposé ne passe que par des étapes que l'API sait aussi enregistrer
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  for (const p of list) assert.equal((await send(env, "/api/penalties", admin, "POST", { cat: p.cat, name: p.name + " (copie)", notes: p.notes, steps: p.steps })).status, 201, p.name);
+});

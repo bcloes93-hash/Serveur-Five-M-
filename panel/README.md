@@ -17,7 +17,11 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
 - **Connexion Discord** réservée aux membres du serveur ayant un rôle staff.
 - **Deux niveaux** : *Modération* (voit et ajoute des sanctions) et *Administration* (en plus : supprime des sanctions
   et consulte le journal d'activité).
-- **Journal de sanctions** : avertissement, expulsion, bannissement temporaire ou définitif, note ; recherche par joueur,
+- **Barème des sanctions** (onglet *Sanctions → Barème*) : pour chaque infraction (RDM, troll, insultes…), les paliers à
+  appliquer selon les récidives, par exemple avertissement, expulsion, ban 3 jours, ban définitif. Il se lit d'un coup
+  d'œil, se recherche, et un bouton « Noter dans le journal » reprend l'infraction dans le journal. Visible par tout le
+  staff ; l'administration l'édite depuis le panel.
+- **Journal de sanctions** (onglet *Sanctions → Journal*) : avertissement, expulsion, bannissement temporaire ou définitif, note ; recherche par joueur,
   identifiant ou motif ; chaque ligne garde l'auteur et la date.
 - **Journal d'activité** : connexions, sanctions ajoutées et supprimées. Une suppression est « douce » : la ligne reste
   en base, seul l'affichage la masque.
@@ -53,6 +57,10 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 3. (Facultatif) Pour pré-remplir l'organigramme avec l'équipe actuelle, collez ensuite le contenu de
    [`seed.sql`](./seed.sql) et **Execute**. **À faire une seule fois** : le refaire créerait des doublons.
    Sans cette étape, l'organigramme démarre vide et l'administration le remplit depuis le panel.
+4. (Facultatif) Pour partir d'un barème de sanctions déjà rédigé, collez le contenu de
+   [`seed-bareme.sql`](./seed-bareme.sql) et **Execute**, une seule fois. ⚠️ C'est une **proposition** (13 infractions
+   tirées du règlement public, avec des paliers et durées courants) : l'équipe doit la relire et l'adapter avant de
+   l'appliquer. Sans cette étape, le barème démarre vide.
 
 ## Étape 3 bis – Créer le relais
 1. **Compute** → **Workers & Pages** → **Create** → **Create Worker** → nom : `santos-legacy-staff` → **Deploy**.
@@ -90,6 +98,12 @@ staffApi: "https://santos-legacy-staff.b-cloes93.workers.dev",
 
 Le lien « Espace staff » apparaît alors dans le pied de page du site, et `staff.html` affiche la connexion.
 
+## Remplir le barème
+Compte **Administration** → *Sanctions → Barème* → « Ajouter une infraction au barème » : nom, catégorie, puis jusqu'à
+5 **paliers** dans l'ordre (le 1ᵉʳ pour la première infraction, le 2ᵉ pour la récidive…). Chaque palier est un
+avertissement, une expulsion, un ban temporaire (durée obligatoire), un ban définitif ou « Autre » (texte libre).
+Une infraction avec un seul palier s'affiche « Immédiat » (ex. triche → ban définitif).
+
 ## Remplir les commandes
 Une fois connecté avec un compte **Administration** : onglet **Commandes** → formulaire « Ajouter une commande »
 (type Discord ou FiveM, catégorie, commande, description, exemple). Chaque ligne a ses boutons *Modifier* et *Supprimer*.
@@ -114,4 +128,4 @@ Seule l'administration peut modifier ; la modération consulte et copie.
 node --test panel/worker.test.mjs
 ```
 Les tests utilisent une vraie base SQLite en mémoire et un faux Discord : connexion, droits par rôle, jetons falsifiés,
-injection SQL, recherche, suppression douce, commandes et organigramme (lecture staff, écriture administration).
+injection SQL, recherche, suppression douce, commandes, organigramme et barème (lecture staff, écriture administration).
