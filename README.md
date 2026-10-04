@@ -9,9 +9,11 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `index.html` | Accueil : bannière, statut en direct, présentation, étapes pour rejoindre |
 | `reglement.html` | Règlement (conditions d'accès, mort RP, commerce réel et streams fournis par le fondateur ; le reste est un texte type à adapter) |
 | `equipe.html` | Équipe du serveur (fondateur, manager, admins, modérateur) |
+| `candidature.html` | Candidature WL (joueur) et candidature Staff, en deux onglets |
 | `js/config.js` | **Seul fichier à modifier** : lien Discord et code cfx.re |
 | `css/style.css` | Thème néon (couleurs en variables CSS au début du fichier) |
 | `js/main.js` | Menu mobile, animations, statistiques Discord et FiveM |
+| `js/candidature.js` | Onglets, validation et envoi des candidatures |
 | `assets/` | Logo et bannières |
 
 ## Brancher le serveur FiveM
@@ -28,6 +30,29 @@ Tant que le champ est vide, le site affiche « Ouverture prochaine » et pousse 
 > Les statistiques sont lues directement depuis le navigateur des visiteurs
 > (API d'invitation Discord et API publique Cfx.re). Si l'une de ces API refuse la requête,
 > le site affiche « — » ou « Statut indisponible » sans casser la page.
+
+## Candidatures
+
+La page `candidature.html` propose deux formulaires (WL et Staff). Deux modes de fonctionnement :
+
+- **Mode copier-coller (par défaut)** : à l'envoi, le site compose le texte de la candidature, le copie
+  dans le presse-papiers et invite le candidat à le coller dans le salon de candidatures du Discord.
+  Aucun compte externe n'est nécessaire.
+- **Mode envoi automatique** : renseigner dans `js/config.js` l'adresse d'envoi d'un service de formulaires
+  (par exemple [Formspree](https://formspree.io), qui transmet les réponses par e-mail) :
+
+  ```js
+  applications: {
+    whitelist: "https://formspree.io/f/xxxxxxxx",
+    staff: "https://formspree.io/f/yyyyyyyy",
+  },
+  ```
+
+  Si l'envoi échoue, le site retombe automatiquement sur le mode copier-coller.
+
+Les questions se modifient directement dans `candidature.html` (champs) et `js/candidature.js` (libellés
+du texte final, constante `SCHEMAS`). L'adresse d'un service de formulaires peut être publique, contrairement
+à un webhook Discord, qui ne doit jamais être écrit dans ce dépôt public.
 
 ## Tester en local
 

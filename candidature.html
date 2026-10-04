@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Candidature – Santos Legacy RP</title>
+  <meta name="description" content="Candidatez pour rejoindre Santos Legacy RP : candidature whitelist (joueur) ou candidature staff.">
+  <meta name="theme-color" content="#070716">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:title" content="Candidature – Santos Legacy RP">
+  <meta property="og:description" content="Candidature whitelist ou candidature staff : rejoignez Santos Legacy RP.">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+  <a class="skip-link" href="#contenu">Aller au contenu</a>
+
+  <header class="nav" id="top">
+    <div class="nav__inner">
+      <a class="nav__brand" href="index.html" aria-label="Santos Legacy RP – accueil">
+        <img src="assets/logo.png" width="44" height="44" alt="">
+        <span>Santos <em>Legacy</em> RP</span>
+      </a>
+
+      <button class="nav__toggle" type="button" aria-expanded="false" aria-controls="menu">
+        <span class="sr-only">Menu</span>
+        <span class="nav__burger" aria-hidden="true"></span>
+      </button>
+
+      <nav class="nav__menu" id="menu" aria-label="Navigation principale">
+        <a href="index.html">Accueil</a>
+        <a href="index.html#serveur">Le serveur</a>
+        <a href="index.html#rejoindre">Rejoindre</a>
+        <a href="reglement.html">Règlement</a>
+        <a href="equipe.html">Équipe</a>
+        <a href="candidature.html" aria-current="page">Candidature</a>
+        <a class="btn btn--small btn--discord" href="#" data-discord target="_blank" rel="noopener">Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenu">
+    <section class="page-head">
+      <div class="container">
+        <p class="eyebrow">Candidature</p>
+        <h1 class="section__title">Rejoignez Santos Legacy RP</h1>
+        <p class="section__lead">Choisissez le type de candidature : joueur (whitelist) ou membre du staff. Avant de postuler, lisez le <a href="reglement.html">règlement</a>.</p>
+      </div>
+    </section>
+
+    <section class="apply" aria-label="Formulaires de candidature">
+      <div class="container">
+
+        <div class="tabs" role="tablist" aria-label="Type de candidature">
+          <button class="tabs__tab" type="button" role="tab" id="tab-whitelist" aria-controls="panel-whitelist" aria-selected="true">Candidature WL</button>
+          <button class="tabs__tab" type="button" role="tab" id="tab-staff" aria-controls="panel-staff" aria-selected="false" tabindex="-1">Candidature Staff</button>
+        </div>
+
+        <noscript>
+          <p class="rules__note">JavaScript est nécessaire pour envoyer une candidature depuis cette page. Vous pouvez aussi candidater directement via notre Discord.</p>
+        </noscript>
+
+        <!-- ================= WHITELIST ================= -->
+        <section class="tabpanel" id="panel-whitelist" role="tabpanel" aria-labelledby="tab-whitelist" tabindex="0">
+          <h2 class="tabpanel__title">Candidature Whitelist</h2>
+          <p class="tabpanel__lead">Pour jouer sur Santos Legacy RP, une candidature écrite rapide est demandée. Il n'y a pas d'entretien vocal pour le moment, mais les nouveaux joueurs sont suivis de très près : aucun troll n'est toléré.</p>
+          <ul class="prereq" aria-label="Prérequis">
+            <li>18 ans minimum</li>
+            <li>Micro de bonne qualité</li>
+          </ul>
+
+          <form class="form" data-apply="whitelist">
+            <div class="form__body">
+              <div class="form__row">
+                <div class="field">
+                  <label for="wl-discord">Pseudo Discord <span class="req" aria-hidden="true">*</span></label>
+                  <input id="wl-discord" name="discord" type="text" required maxlength="40" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="wl-age">Âge <span class="req" aria-hidden="true">*</span></label>
+                  <input id="wl-age" name="age" type="number" inputmode="numeric" min="18" max="99" required>
+                  <span class="field__hint">18 ans minimum.</span>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="wl-personnage">Nom et prénom de votre personnage <span class="req" aria-hidden="true">*</span></label>
+                <input id="wl-personnage" name="personnage" type="text" required maxlength="60" autocomplete="off">
+              </div>
+
+              <div class="field">
+                <label for="wl-experience">Votre expérience en roleplay <span class="req" aria-hidden="true">*</span></label>
+                <textarea id="wl-experience" name="experience" rows="3" required maxlength="400"></textarea>
+                <span class="field__hint">Serveurs fréquentés, durée… Quelques lignes suffisent.</span>
+              </div>
+
+              <div class="field">
+                <label for="wl-histoire">Histoire de votre personnage <span class="req" aria-hidden="true">*</span></label>
+                <textarea id="wl-histoire" name="histoire" rows="6" required minlength="60" maxlength="700"></textarea>
+                <span class="field__hint">Qui est-il ? D'où vient-il ? Que cherche-t-il à Los Santos ? (60 caractères minimum)</span>
+              </div>
+
+              <div class="field">
+                <label for="wl-motivation">Pourquoi Santos Legacy RP ?</label>
+                <textarea id="wl-motivation" name="motivation" rows="3" maxlength="300"></textarea>
+              </div>
+
+              <p class="hp" aria-hidden="true"><label>Ne pas remplir <input type="text" name="_gotcha" tabindex="-1" autocomplete="off"></label></p>
+
+              <label class="check"><input type="checkbox" name="micro" required> <span>Je dispose d'un micro de bonne qualité.</span></label>
+              <label class="check"><input type="checkbox" name="reglement" required> <span>J'ai lu et j'accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement</a>.</span></label>
+
+              <p class="form__note">Ne partagez aucune information sensible dans votre candidature (mot de passe, coordonnées bancaires…).</p>
+
+              <div class="form__actions">
+                <button class="btn btn--primary" type="submit">Envoyer ma candidature</button>
+              </div>
+              <p class="form__status" role="status" aria-live="polite"></p>
+            </div>
+          </form>
+        </section>
+
+        <!-- ================= STAFF ================= -->
+        <section class="tabpanel" id="panel-staff" role="tabpanel" aria-labelledby="tab-staff" tabindex="0">
+          <h2 class="tabpanel__title">Candidature Staff</h2>
+          <p class="tabpanel__lead">Vous souhaitez aider à faire vivre le serveur ? Présentez-vous et expliquez ce que vous pouvez apporter à l'équipe. Les membres du staff sont des joueurs de confiance : soyez sincère et précis.</p>
+          <ul class="prereq" aria-label="Prérequis">
+            <li>18 ans minimum</li>
+            <li>Règlement lu et compris</li>
+          </ul>
+
+          <form class="form" data-apply="staff">
+            <div class="form__body">
+              <div class="form__row">
+                <div class="field">
+                  <label for="st-discord">Pseudo Discord <span class="req" aria-hidden="true">*</span></label>
+                  <input id="st-discord" name="discord" type="text" required maxlength="40" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="st-age">Âge <span class="req" aria-hidden="true">*</span></label>
+                  <input id="st-age" name="age" type="number" inputmode="numeric" min="18" max="99" required>
+                  <span class="field__hint">18 ans minimum.</span>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="st-poste">Poste souhaité <span class="req" aria-hidden="true">*</span></label>
+                <select id="st-poste" name="poste" required>
+                  <option value="" selected disabled>Choisir…</option>
+                  <option>Modérateur</option>
+                  <option>Administrateur</option>
+                  <option>Développeur</option>
+                  <option>Autre</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="st-experience">Votre expérience (modération, administration, autre) <span class="req" aria-hidden="true">*</span></label>
+                <textarea id="st-experience" name="experience" rows="4" required maxlength="500"></textarea>
+                <span class="field__hint">Serveurs ou communautés où vous avez déjà eu un rôle, et lequel.</span>
+              </div>
+
+              <div class="field">
+                <label for="st-disponibilites">Vos disponibilités <span class="req" aria-hidden="true">*</span></label>
+                <input id="st-disponibilites" name="disponibilites" type="text" required maxlength="150" autocomplete="off">
+                <span class="field__hint">Jours et horaires habituels.</span>
+              </div>
+
+              <div class="field">
+                <label for="st-motivation">Pourquoi voulez-vous rejoindre le staff ? <span class="req" aria-hidden="true">*</span></label>
+                <textarea id="st-motivation" name="motivation" rows="5" required minlength="60" maxlength="500"></textarea>
+                <span class="field__hint">60 caractères minimum.</span>
+              </div>
+
+              <p class="hp" aria-hidden="true"><label>Ne pas remplir <input type="text" name="_gotcha" tabindex="-1" autocomplete="off"></label></p>
+
+              <label class="check"><input type="checkbox" name="reglement" required> <span>J'ai lu et j'accepte le <a href="reglement.html" target="_blank" rel="noopener">règlement</a>.</span></label>
+
+              <p class="form__note">Ne partagez aucune information sensible dans votre candidature (mot de passe, coordonnées bancaires…).</p>
+
+              <div class="form__actions">
+                <button class="btn btn--primary" type="submit">Envoyer ma candidature</button>
+              </div>
+              <p class="form__status" role="status" aria-live="polite"></p>
+            </div>
+          </form>
+        </section>
+
+      </div>
+    </section>
+
+    <template id="result-tpl">
+      <div class="result" tabindex="-1">
+        <h3 class="result__title"></h3>
+        <p class="result__msg"></p>
+        <textarea class="result__box" rows="9" readonly aria-label="Texte de votre candidature"></textarea>
+        <div class="result__actions">
+          <button type="button" class="btn btn--ghost btn--small" data-copy>Copier le texte</button>
+          <a class="btn btn--discord btn--small" href="#" data-discord-link target="_blank" rel="noopener">Ouvrir le Discord</a>
+          <button type="button" class="btn btn--small btn--link" data-edit>Modifier ma candidature</button>
+        </div>
+      </div>
+    </template>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand">
+        <img src="assets/logo.png" width="56" height="56" alt="">
+        <div>
+          <strong>Santos Legacy RP</strong>
+          <span>Serveur RP FiveM francophone</span>
+        </div>
+      </div>
+      <nav class="footer__links" aria-label="Liens du pied de page">
+        <a href="index.html">Accueil</a>
+        <a href="reglement.html">Règlement</a>
+        <a href="equipe.html">Équipe</a>
+        <a href="candidature.html">Candidature</a>
+        <a href="#" data-discord target="_blank" rel="noopener">Discord</a>
+      </nav>
+    </div>
+    <p class="footer__legal container">
+      © <span data-year>2026</span> Santos Legacy RP. Ce serveur est indépendant et n'est affilié ni à Rockstar Games, ni à Take-Two Interactive, ni à Cfx.re.
+    </p>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/candidature.js"></script>
+</body>
+</html>

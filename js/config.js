@@ -13,4 +13,14 @@ window.SITE_CONFIG = {
   // Laisser vide tant que le serveur n'est pas enregistré : le site affiche
   // alors « Ouverture prochaine » et masque le bouton de connexion.
   cfxCode: "",
+
+  // Envoi automatique des candidatures (optionnel).
+  // Coller ici l'adresse d'envoi d'un service de formulaires (ex. Formspree :
+  // "https://formspree.io/f/xxxxxxxx"), une par type de candidature.
+  // Laisser vide = mode « copier-coller » : le candidat copie son texte
+  // et le dépose sur le Discord.
+  applications: {
+    whitelist: "",
+    staff: "",
+  },
 };
