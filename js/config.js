@@ -14,6 +14,14 @@ window.SITE_CONFIG = {
   // alors « Ouverture prochaine » et masque le bouton de connexion.
   cfxCode: "",
 
+  // Formulaire externe (optionnel) : si une adresse est renseignée, l'onglet
+  // affiche un bouton qui ouvre ce formulaire (Google Forms, Tally…) à la place
+  // du formulaire du site. Une adresse par type de candidature.
+  applicationLinks: {
+    whitelist: "",
+    staff: "",
+  },
+
   // Envoi automatique des candidatures (optionnel).
   // Coller ici l'adresse d'envoi d'un service de formulaires (ex. Formspree :
   // "https://formspree.io/f/xxxxxxxx"), une par type de candidature.

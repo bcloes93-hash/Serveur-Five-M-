@@ -167,9 +167,38 @@
     node.focus();
   }
 
+  /* ---------- Formulaire externe (optionnel) ---------- */
+  var links = cfg.applicationLinks || {};
+
+  function safeUrl(u) {
+    try {
+      var x = new URL(String(u || "").trim());
+      return /^https?:$/.test(x.protocol) ? x.href : "";
+    } catch (e) { return ""; }
+  }
+
+  function useExternal(form, type, url) {
+    var box = document.createElement("div");
+    box.className = "external";
+    var p = document.createElement("p");
+    p.textContent = "Cette candidature se remplit sur un formulaire en ligne, qui s'ouvre dans un nouvel onglet.";
+    var a = document.createElement("a");
+    a.className = "btn btn--primary";
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "Remplir la candidature " + (type === "staff" ? "Staff" : "WL");
+    box.appendChild(p);
+    box.appendChild(a);
+    form.parentNode.insertBefore(box, form);
+    form.hidden = true;
+  }
+
   /* ---------- Soumission ---------- */
   $$("form[data-apply]").forEach(function (form) {
     var type = form.getAttribute("data-apply");
+    var external = safeUrl(links[type]);
+    if (external) { useExternal(form, type, external); return; }
     var status = $(".form__status", form);
     var submit = $('[type="submit"]', form);
 

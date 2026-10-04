@@ -33,9 +33,22 @@ Tant que le champ est vide, le site affiche « Ouverture prochaine » et pousse 
 
 ## Candidatures
 
-La page `candidature.html` propose deux formulaires (WL et Staff). Deux modes de fonctionnement :
+La page `candidature.html` propose deux candidatures (WL et Staff). Trois modes de fonctionnement :
 
-- **Mode copier-coller (par défaut)** : à l'envoi, le site compose le texte de la candidature, le copie
+- **Formulaire externe (le plus simple)** : créer un formulaire gratuit (Google Forms, Tally…), puis coller
+  son adresse dans `js/config.js`. L'onglet affiche alors un bouton qui l'ouvre dans un nouvel onglet, et les
+  réponses sont conservées par le service :
+
+  ```js
+  applicationLinks: {
+    whitelist: "https://forms.gle/xxxxxxxx",
+    staff: "https://forms.gle/yyyyyyyy",
+  },
+  ```
+
+  Seules les adresses `http://` et `https://` sont acceptées. Ce mode est prioritaire sur les deux suivants.
+
+- **Mode copier-coller (par défaut si rien n'est renseigné)** : à l'envoi, le site compose le texte de la candidature, le copie
   dans le presse-papiers et invite le candidat à le coller dans le salon de candidatures du Discord.
   Aucun compte externe n'est nécessaire.
 - **Mode envoi automatique** : renseigner dans `js/config.js` l'adresse d'envoi d'un service de formulaires

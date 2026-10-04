@@ -411,6 +411,9 @@ a:hover { color: #7be6ff; }
 .form__status { margin: 0; min-height: 1.4em; color: #fb7185; }
 .btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
 
+.external { margin-top: 28px; display: grid; gap: 18px; justify-items: start; }
+.external p { margin: 0; color: var(--muted); max-width: 60ch; }
+
 /* Champ piège pour les robots : invisible pour les humains. */
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
