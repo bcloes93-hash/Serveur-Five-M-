@@ -52,7 +52,11 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   - **glisser** une carte dans une autre case pour **déplacer** la personne ;
   - **Ctrl + glisser** (Option sur Mac) pour la **copier** : une même personne peut figurer dans plusieurs pôles ;
   - sans souris (téléphone, clavier) : bouton *Afficher les outils*, puis « Déplacer vers… », ou « Copier » suivi de
-    « Coller ici » dans chaque case voulue ; « Retirer » enlève la personne d'une seule case ;
+    « Coller ici » dans chaque case voulue ;
+  - **remettre quelqu'un « à placer »** : glissez sa carte sur la zone « À placer » (ou menu « Déplacer vers… ») ;
+  - « Retirer » (sur une carte d'un pôle) enlève la personne de cette case ; si c'était sa seule case, elle retourne
+    dans « À placer » : **elle n'est jamais supprimée par ce bouton**. Seul « Supprimer » (sur une carte de « À placer »,
+    ou dans la liste de gestion en bas de page) l'enlève définitivement, après confirmation ;
   - ajouter quelqu'un depuis le formulaire : sans case choisie, il arrive dans **« À placer »** (en haut du schéma),
     d'où on le glisse dans l'arbre. Les personnes déjà enregistrées avant cette version (anciens rangs) y arrivent aussi.
 

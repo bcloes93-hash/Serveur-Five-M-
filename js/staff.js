@@ -587,6 +587,8 @@
   });
   var ORG_KEYS = [].concat.apply([], ORG_ROWS).map(function (n) { return n[0]; });
   var GENERIC_ROLES = ["Fondateur", "Manager", "Admin", "Modérateur", "Support", "À placer"];
+  var POOL = { key: "other", label: "À placer", title: "À placer" };   // la réserve, hors de l'arbre
+  function caseOf(key) { return key === "other" ? POOL : ORG[key]; }
   var orgState = { items: [], editing: null, dragId: null, clip: null, pole: "", relayOk: true };
   var mForm = $("#member-form"), mStatus = $("#m-status"), oStatus = $("#org-status");
 
@@ -623,7 +625,7 @@
 
   // Ajoute la personne (une copie) dans une case ; l'original reste où il est.
   function addCopy(name, role, key) {
-    var target = ORG[key];
+    var target = caseOf(key);
     if (!target) return;
     if (inCase(name, key)) { orgSay("« " + name + " » est déjà dans « " + target.label + " ».", false); return; }
     orgSay("Ajout de « " + name + " »…", false);
@@ -665,6 +667,7 @@
     var sel = el("select", "tcard__move");
     sel.setAttribute("aria-label", "Déplacer " + m.name + " vers une autre case");
     sel.appendChild(new Option("Déplacer vers…", ""));
+    if (inTree(m.kind) && !inCase(m.name, "other")) sel.appendChild(new Option("À placer (hors de l'arbre)", "other"));
     ORG_ROWS.forEach(function (row, i) {
       var g = document.createElement("optgroup");
       g.label = ORG_RANKS[row[0][1]];
@@ -678,13 +681,35 @@
     cp.setAttribute("aria-label", "Copier " + m.name + " pour le coller dans d'autres pôles");
     cp.addEventListener("click", function () { setClip(m); });
     tools.appendChild(cp);
-    var rm = el("button", "tcard__btn tcard__btn--danger", "Retirer");
+    var inPool = !inTree(m.kind);
+    var rm = el("button", "tcard__btn tcard__btn--danger", inPool ? "Supprimer" : "Retirer");
     rm.type = "button";
-    rm.setAttribute("aria-label", "Retirer " + m.name + " de cette case");
-    rm.addEventListener("click", function () { removeCard(m); });
+    rm.setAttribute("aria-label", inPool ? "Supprimer " + m.name + " de l'organigramme" : "Retirer " + m.name + " de cette case (retour dans À placer s'il n'a pas d'autre case)");
+    rm.addEventListener("click", function () { if (inPool) deleteRow(m); else leaveCase(m); });
     tools.appendChild(rm);
     li.appendChild(tools);
     return li;
+  }
+
+  // Une case (ou la réserve) où l'on peut déposer une carte : glisser = déplacer, Ctrl/Option + glisser = copier.
+  function makeDropTarget(sec, key) {
+    sec.addEventListener("dragover", function (e) {
+      if (orgState.dragId == null) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = (e.ctrlKey || e.altKey) ? "copy" : "move";
+      sec.classList.add("tnode--over");
+    });
+    sec.addEventListener("dragleave", function (e) { if (!e.relatedTarget || !sec.contains(e.relatedTarget)) sec.classList.remove("tnode--over"); });
+    sec.addEventListener("drop", function (e) {
+      e.preventDefault();
+      sec.classList.remove("tnode--over");
+      var id = orgState.dragId, copy = e.ctrlKey || e.altKey;
+      orgState.dragId = null;
+      if (id == null) return;
+      var m = orgState.items.filter(function (x) { return x.id === id; })[0];
+      if (!m) return;
+      if (copy) addCopy(m.name, m.role, key); else moveMember(id, key, false);
+    });
   }
 
   function treeNode(def, movable) {
@@ -714,23 +739,7 @@
     paste.addEventListener("click", function () { if (orgState.clip) addCopy(orgState.clip.name, orgState.clip.role, def.key); });
     sec.appendChild(paste);
 
-    sec.addEventListener("dragover", function (e) {
-      if (orgState.dragId == null) return;
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = (e.ctrlKey || e.altKey) ? "copy" : "move";
-      sec.classList.add("tnode--over");
-    });
-    sec.addEventListener("dragleave", function (e) { if (!e.relatedTarget || !sec.contains(e.relatedTarget)) sec.classList.remove("tnode--over"); });
-    sec.addEventListener("drop", function (e) {
-      e.preventDefault();
-      sec.classList.remove("tnode--over");
-      var id = orgState.dragId, copy = e.ctrlKey || e.altKey;
-      orgState.dragId = null;
-      if (id == null) return;
-      var m = orgState.items.filter(function (x) { return x.id === id; })[0];
-      if (!m) return;
-      if (copy) addCopy(m.name, m.role, def.key); else moveMember(id, def.key, false);
-    });
+    makeDropTarget(sec, def.key);
     return sec;
   }
 
@@ -747,10 +756,11 @@
     h.id = "tnode-other";
     sec.setAttribute("aria-labelledby", h.id);
     sec.appendChild(h);
-    sec.appendChild(el("p", "tnode__desc", movable ? "Glissez chaque personne dans un pôle de l'arbre (Ctrl + glisser pour la copier)." : "Pas encore placés dans un pôle."));
+    sec.appendChild(el("p", "tnode__desc", movable ? "Glissez chaque personne dans un pôle de l'arbre (Ctrl + glisser pour la copier). Déposez ici quelqu'un pour le remettre en réserve." : "Pas encore placés dans un pôle."));
     var ul = el("ul", "tnode__list tnode__list--tray");
     members.forEach(function (m) { ul.appendChild(treeCard(m, movable)); });
     sec.appendChild(ul);
+    if (movable) makeDropTarget(sec, "other");
     return sec;
   }
 
@@ -818,9 +828,14 @@
 
   function moveMember(id, key, fromMenu) {
     var m = orgState.items.filter(function (x) { return x.id === id; })[0];
-    var target = ORG[key];
+    var target = caseOf(key);
     if (!m || !target || m.kind === key) return;
-    if (inCase(m.name, key)) { orgSay("« " + m.name + " » est déjà dans « " + target.label + " ».", false); return; }
+    if (inCase(m.name, key)) {
+      // Déjà en réserve (copie) : « remettre à placer » revient à retirer cette case, la personne y est déjà.
+      if (key === "other" && inTree(m.kind)) { deleteRowNow(m, "« " + m.name + " » est de nouveau dans « À placer »."); return; }
+      orgSay("« " + m.name + " » est déjà dans « " + target.label + " ».", false);
+      return;
+    }
     var before = { kind: m.kind, role: m.role, position: m.position };
     var next = { kind: key, role: isGenericRole(m.role) ? target.label : m.role, position: nextPos(key) };
     Object.keys(next).forEach(function (k) { m[k] = next[k]; });
@@ -839,14 +854,24 @@
     });
   }
 
-  function removeCard(m) {
+  function deleteRowNow(m, doneText) {
+    api("DELETE", "/api/org/" + encodeURIComponent(m.id)).then(function () {
+      return loadOrg().then(function () { orgSay(doneText, true); });
+    }, function (err) { if (err.status !== 401) orgSay(lastResort(err, "Retrait impossible."), false); });
+  }
+  // « Retirer » depuis un pôle : on enlève cette case ; si c'était la seule, la personne retourne dans « À placer » (jamais supprimée).
+  function leaveCase(m) {
+    var elsewhere = orgState.items.some(function (x) { return x.id !== m.id && sameName(x.name, m.name); });
+    if (elsewhere) { deleteRowNow(m, "« " + m.name + " » a été retiré(e) de « " + caseOf(m.kind).label + " » (la personne reste dans ses autres cases)."); return; }
+    moveMember(m.id, "other", false);
+  }
+  // Suppression définitive d'une ligne (depuis « À placer » ou la liste de gestion), après confirmation.
+  function deleteRow(m) {
     var elsewhere = orgState.items.some(function (x) { return x.id !== m.id && sameName(x.name, m.name); });
     var where = inTree(m.kind) ? "la case « " + ORG[m.kind].label + " »" : "la liste « À placer »";
-    var msg = "Retirer « " + m.name + " » de " + where + " ? " + (elsewhere ? "Cette personne reste dans ses autres cases." : "C'est sa seule case : elle disparaîtra de l'organigramme.");
+    var msg = "Supprimer « " + m.name + " » de " + where + " ? " + (elsewhere ? "Cette personne reste dans ses autres cases." : "C'est sa seule ligne : elle disparaîtra de l'organigramme.");
     if (!window.confirm(msg)) return;
-    api("DELETE", "/api/org/" + encodeURIComponent(m.id)).then(function () {
-      return loadOrg().then(function () { orgSay("« " + m.name + " » a été retiré(e) de " + where + ".", true); });
-    }, function (err) { if (err.status !== 401) orgSay(lastResort(err, "Retrait impossible."), false); });
+    deleteRowNow(m, "« " + m.name + " » a été supprimé(e) de " + where + ".");
   }
 
   // Les outils (déplacer, copier, retirer) restent masqués tant qu'on n'en a pas besoin ; ils s'affichent d'office sur écran tactile.
@@ -869,7 +894,7 @@
       li.appendChild(info);
       var actions = el("div", "manage__actions");
       actions.appendChild(linkButton("Modifier", function () { startEditMember(m); }));
-      actions.appendChild(linkButton("Retirer", function () { removeCard(m); }, true));
+      actions.appendChild(linkButton("Supprimer", function () { deleteRow(m); }, true));
       li.appendChild(actions);
       ul.appendChild(li);
     });
