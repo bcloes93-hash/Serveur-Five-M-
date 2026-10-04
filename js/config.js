@@ -22,6 +22,9 @@ window.SITE_CONFIG = {
     staff: "",
   },
 
+  // Délai (en minutes) avant qu'un même visiteur puisse renvoyer une candidature.
+  applicationCooldownMinutes: 30,
+
   // Envoi automatique des candidatures (optionnel).
   // Coller ici l'adresse d'envoi d'un service de formulaires (ex. Formspree :
   // "https://formspree.io/f/xxxxxxxx"), une par type de candidature.

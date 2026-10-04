@@ -45,6 +45,9 @@ body {
 }
 
 img { max-width: 100%; display: block; }
+
+/* L'attribut hidden doit toujours gagner, même sur les éléments qui ont un display (boutons…). */
+[hidden] { display: none !important; }
 a { color: var(--cyan); }
 a:hover { color: #7be6ff; }
 

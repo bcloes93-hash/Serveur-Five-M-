@@ -108,16 +108,29 @@
     catch (e) { return Promise.resolve(false); }
   }
 
+  /* ---------- Délai entre deux candidatures (confort ; le vrai contrôle est côté relais) ---------- */
+  var COOLDOWN_MS = (Number(cfg.applicationCooldownMinutes) || 30) * 60000;
+  var COOLDOWN_MSG = "Vous avez déjà envoyé une candidature il y a peu. Merci de patienter : nous vous répondrons rapidement, inutile de la renvoyer.";
+
+  function recentlySent(type) {
+    try { return Date.now() - (Number(localStorage.getItem("sl_applied_" + type)) || 0) < COOLDOWN_MS; }
+    catch (e) { return false; }
+  }
+  function markSent(type) {
+    try { localStorage.setItem("sl_applied_" + type, String(Date.now())); } catch (e) { /* stockage indisponible */ }
+  }
+
   /* ---------- Envoi automatique (optionnel) ---------- */
   function send(endpoint, form, type) {
     var fd = new FormData(form);
     fd.append("_subject", SCHEMAS[type].title + " – " + (cfg.serverName || "Santos Legacy RP"));
+    fd.append("_type", type);
     var ctrl = typeof AbortController === "function" ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 15000) : null;
     return fetch(endpoint, { method: "POST", body: fd, headers: { Accept: "application/json" }, signal: ctrl ? ctrl.signal : undefined })
       .then(function (r) {
         if (timer) clearTimeout(timer);
-        if (!r.ok) throw new Error("HTTP " + r.status);
+        if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
       }, function (err) {
         if (timer) clearTimeout(timer);
         throw err;
@@ -141,8 +154,8 @@
     if (cfg.discordInvite) discord.href = cfg.discordInvite;
 
     if (kind === "sent") {
-      title.textContent = "Candidature envoyée";
-      msg.textContent = "Merci ! Votre candidature a été transmise au staff. Pensez à rejoindre le Discord pour suivre la suite.";
+      title.textContent = "Candidature bien envoyée";
+      msg.textContent = "Merci ! Votre candidature a bien été transmise au staff. Vous aurez une réponse rapidement : merci de ne pas spammer les demandes, une seule candidature suffit. Pensez à rejoindre le Discord pour suivre la suite.";
       box.hidden = true; copyBtn.hidden = true; editBtn.hidden = true;
     } else {
       box.value = text;
@@ -212,15 +225,19 @@
 
       if (!endpoint) { showResult(form, "copy", text); return; }
 
+      if (recentlySent(type)) { status.textContent = COOLDOWN_MSG; return; }
+
       submit.disabled = true;
       var label = submit.textContent;
       submit.textContent = "Envoi en cours…";
       send(endpoint, form, type).then(function () {
+        markSent(type);
         form.reset();
         $$(".counter", form).forEach(function (c) { c.textContent = c.textContent.replace(/^\d+/, "0"); });
         showResult(form, "sent");
-      }, function () {
-        showResult(form, "failed", text);
+      }, function (err) {
+        if (err && err.status === 429) { markSent(type); status.textContent = COOLDOWN_MSG; }
+        else showResult(form, "failed", text);
       }).then(function () {
         submit.disabled = false;
         submit.textContent = label;

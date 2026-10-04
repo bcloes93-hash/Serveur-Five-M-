@@ -14,6 +14,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `css/style.css` | Thème néon (couleurs en variables CSS au début du fichier) |
 | `js/main.js` | Menu mobile, animations, statistiques Discord et FiveM |
 | `js/candidature.js` | Onglets, validation et envoi des candidatures |
+| `worker/` | Relais Cloudflare qui poste les candidatures dans Discord (`relay.mjs`, tests, notice) |
 | `assets/` | Logo et bannières |
 
 ## Brancher le serveur FiveM
@@ -33,39 +34,33 @@ Tant que le champ est vide, le site affiche « Ouverture prochaine » et pousse 
 
 ## Candidatures
 
-La page `candidature.html` propose deux candidatures (WL et Staff). Trois modes de fonctionnement :
+La page `candidature.html` propose deux candidatures (WL et Staff). Selon ce qui est renseigné dans
+`js/config.js`, elles fonctionnent de quatre façons (par ordre de priorité) :
 
-- **Formulaire externe (le plus simple)** : créer un formulaire gratuit (Google Forms, Tally…), puis coller
-  son adresse dans `js/config.js`. L'onglet affiche alors un bouton qui l'ouvre dans un nouvel onglet, et les
-  réponses sont conservées par le service :
+1. **Formulaire externe** (`applicationLinks`) : l'onglet affiche un bouton qui ouvre un formulaire
+   Google Forms, Tally… dans un nouvel onglet. Seules les adresses `http://` et `https://` sont acceptées.
+2. **Envoi direct dans un salon Discord (recommandé)** (`applications`) : le formulaire du site envoie la
+   candidature à un petit relais Cloudflare, qui la poste dans le salon Discord sans exposer le webhook.
+   Le candidat voit « Candidature bien envoyée » ; un délai anti-spam limite les renvois.
+   Mise en place pas à pas : [`worker/README.md`](worker/README.md).
+3. **Envoi par e-mail** (`applications`, avec par exemple [Formspree](https://formspree.io)) :
+   mettre l'adresse d'envoi du service à la place de celle du relais.
+4. **Copier-coller (par défaut si rien n'est renseigné)** : le site compose le texte, le copie dans le
+   presse-papiers et invite le candidat à le coller dans le salon de candidatures du Discord.
 
-  ```js
-  applicationLinks: {
-    whitelist: "https://forms.gle/xxxxxxxx",
-    staff: "https://forms.gle/yyyyyyyy",
-  },
-  ```
+```js
+applicationLinks: { whitelist: "", staff: "" },   // 1. formulaire externe
+applications: {                                   // 2 et 3. envoi automatique
+  whitelist: "https://candidatures-santos-legacy.VOTRE-COMPTE.workers.dev",
+  staff: "https://candidatures-santos-legacy.VOTRE-COMPTE.workers.dev",
+},
+```
 
-  Seules les adresses `http://` et `https://` sont acceptées. Ce mode est prioritaire sur les deux suivants.
+Si l'envoi automatique échoue, le site retombe sur le copier-coller pour ne pas perdre la candidature.
 
-- **Mode copier-coller (par défaut si rien n'est renseigné)** : à l'envoi, le site compose le texte de la candidature, le copie
-  dans le presse-papiers et invite le candidat à le coller dans le salon de candidatures du Discord.
-  Aucun compte externe n'est nécessaire.
-- **Mode envoi automatique** : renseigner dans `js/config.js` l'adresse d'envoi d'un service de formulaires
-  (par exemple [Formspree](https://formspree.io), qui transmet les réponses par e-mail) :
-
-  ```js
-  applications: {
-    whitelist: "https://formspree.io/f/xxxxxxxx",
-    staff: "https://formspree.io/f/yyyyyyyy",
-  },
-  ```
-
-  Si l'envoi échoue, le site retombe automatiquement sur le mode copier-coller.
-
-Les questions se modifient directement dans `candidature.html` (champs) et `js/candidature.js` (libellés
-du texte final, constante `SCHEMAS`). L'adresse d'un service de formulaires peut être publique, contrairement
-à un webhook Discord, qui ne doit jamais être écrit dans ce dépôt public.
+Les questions se modifient dans `candidature.html` (champs), `js/candidature.js` (libellés du texte copié,
+constante `SCHEMAS`) et `worker/relay.mjs` (champs acceptés par le relais, constante `SCHEMAS`) : ces trois
+listes doivent rester cohérentes. **Ne jamais écrire un webhook Discord dans ce dépôt public.**
 
 ## Tester en local
 
