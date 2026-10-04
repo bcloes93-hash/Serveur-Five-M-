@@ -21,22 +21,47 @@
   // Lien « Espace staff » : visible seulement quand le panel est configuré.
   if (cfg.staffApi) $$("[data-staff-link]").forEach(function (a) { a.hidden = false; });
 
-  /* ---------- Règlement : tout déplier / replier, ouverture directe d'un article par son adresse (#r1-5) ---------- */
-  $$("[data-rules-tools]").forEach(function (tools) {
-    tools.hidden = false;   // sans JavaScript, les articles s'ouvrent un à un et ces boutons restent cachés
-    var chapter = tools.closest(".chapter");
-    var set = function (open) { $$("details.rule", chapter).forEach(function (d) { d.open = open; }); };
-    $("[data-rules-open]", tools).addEventListener("click", function () { set(true); });
-    $("[data-rules-close]", tools).addEventListener("click", function () { set(false); });
-  });
-  function openFromHash() {
-    var id = "";
-    try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) { return; }
-    var target = id ? document.getElementById(id) : null;
-    if (target && target.matches("details.rule")) { target.open = true; target.scrollIntoView({ behavior: "instant", block: "start" }); }
+  /* ---------- Règlement : chapitres à gauche, contenu à droite ---------- */
+  var regl = $(".regl");
+  if (regl) {
+    var chapters = $$(".chapter", regl), chapLinks = $$(".regl__link", regl), content = $(".regl__content", regl);
+    // Tout déplier / replier (sans JavaScript, ces boutons restent cachés et les articles s'ouvrent un à un)
+    $$("[data-rules-tools]", regl).forEach(function (tools) {
+      tools.hidden = false;
+      var chapter = tools.closest(".chapter");
+      var set = function (open) { $$("details.rule", chapter).forEach(function (d) { d.open = open; }); };
+      $("[data-rules-open]", tools).addEventListener("click", function () { set(true); });
+      $("[data-rules-close]", tools).addEventListener("click", function () { set(false); });
+    });
+
+    // Un seul chapitre affiché à la fois (sans JavaScript : tous, l'un sous l'autre)
+    var showChapter = function (chapter) {
+      chapters.forEach(function (c) { c.hidden = c !== chapter; });
+      chapLinks.forEach(function (a) { if (a.getAttribute("data-chapter") === chapter.id.replace("chapitre-", "")) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
+    };
+    // Adresse : #chapitre-2 (un chapitre) ou #r2-7 (un article, qui s'ouvre) ; sinon le premier chapitre
+    var fromHash = function (scroll) {
+      var id = "";
+      try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) { id = ""; }
+      var target = id ? document.getElementById(id) : null;
+      var chapter = target ? target.closest(".chapter") : null;
+      if (!chapter || !regl.contains(chapter)) { chapter = chapters[0]; target = null; }
+      showChapter(chapter);
+      if (target && target.matches("details.rule")) { target.open = true; target.scrollIntoView({ behavior: "instant", block: "start" }); }
+      else if (scroll && content.getBoundingClientRect().top < 0) content.scrollIntoView({ behavior: "instant", block: "start" });
+    };
+    chapLinks.forEach(function (a) {
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (history.pushState) history.pushState(null, "", a.getAttribute("href"));
+        fromHash(true);
+        if (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) content.scrollIntoView({ behavior: "smooth", block: "start" });   // petit écran : on amène le contenu sous les yeux
+      });
+    });
+    window.addEventListener("popstate", function () { fromHash(false); });
+    window.addEventListener("hashchange", function () { fromHash(false); });
+    fromHash(false);
   }
-  window.addEventListener("hashchange", openFromHash);
-  openFromHash();
 
   /* ---------- Menu mobile ---------- */
   var toggle = $(".nav__toggle");
