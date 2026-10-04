@@ -31,7 +31,7 @@ window.SITE_CONFIG = {
   // Laisser vide = mode « copier-coller » : le candidat copie son texte
   // et le dépose sur le Discord.
   applications: {
-    whitelist: "",
-    staff: "",
+    whitelist: "https://candidatures-santos-legacy.b-cloes93.workers.dev",
+    staff: "https://candidatures-santos-legacy.b-cloes93.workers.dev",
   },
 };
