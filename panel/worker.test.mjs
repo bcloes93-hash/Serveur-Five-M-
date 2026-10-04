@@ -576,3 +576,72 @@ test("fichiers SQL : aucun commentaire, et collés sur une seule ligne (comme le
   assert.equal(JSON.parse(normal).org.length, 6);
   assert.equal(JSON.parse(normal).penalties.length, 13);
 });
+
+/* ---------- Niveau « support » : lecture seule des références ---------- */
+
+const ROLE_SUPPORT = "666666666666666666";
+const supportEnv = () => makeEnv({ ROLES_SUPPORT: ROLE_SUPPORT });
+
+test("support : connexion acceptée avec le rôle, niveau « support » ; le niveau le plus élevé l'emporte", async () => {
+  const env = supportEnv();
+  const sup = await staffToken(env, [ROLE_SUPPORT]);
+  const me = await (await call(env, "/api/me", { token: sup })).json();
+  assert.equal(me.level, "support");
+  assert.equal((await (await call(env, "/api/me", { token: await staffToken(env, [ROLE_SUPPORT, ROLE_MOD]) })).json()).level, "mod");
+  assert.equal((await (await call(env, "/api/me", { token: await staffToken(env, [ROLE_SUPPORT, ROLE_ADMIN]) })).json()).level, "admin");
+  assert.equal(env.DB.raw.prepare("SELECT target FROM audit ORDER BY id LIMIT 1").get().target, "support");
+});
+
+test("support : sans ROLES_SUPPORT le rôle n'ouvre aucun accès (le plus prudent par défaut)", async () => {
+  const env = makeEnv();   // ROLES_SUPPORT non défini
+  assert.equal((await connect(env, { member: { roles: [ROLE_SUPPORT] } })).location, `${PANEL_URL}#error=not_staff`);
+});
+
+test("support : suffit à lui seul à configurer le panel", async () => {
+  const env = makeEnv({ ROLES_MOD: "", ROLES_ADMIN: "", ROLES_SUPPORT: ROLE_SUPPORT });
+  const r = await panel.fetch(new Request(`${W}/login`), env);
+  assert.equal(r.status, 302);
+  assert.ok(r.headers.get("location").startsWith("https://discord.com/oauth2/authorize"));
+});
+
+test("support : lit le barème, les commandes et l'organigramme, mais ne peut rien écrire", async () => {
+  const env = supportEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const sup = await staffToken(env, [ROLE_SUPPORT]);
+  await send(env, "/api/commands", admin, "POST", cmdBody());
+  await send(env, "/api/org", admin, "POST", memberBody());
+  await send(env, "/api/penalties", admin, "POST", penaltyBody());
+
+  assert.equal((await (await call(env, "/api/commands", { token: sup })).json()).commands.length, 1);
+  assert.equal((await (await call(env, "/api/org", { token: sup })).json()).org.length, 1);
+  assert.equal((await (await call(env, "/api/penalties", { token: sup })).json()).penalties.length, 1);
+
+  for (const [path, body] of [["/api/commands", cmdBody()], ["/api/org", memberBody()], ["/api/penalties", penaltyBody()]]) {
+    assert.equal((await send(env, path, sup, "POST", body)).status, 403, `POST ${path}`);
+    assert.equal((await send(env, `${path}/1`, sup, "PUT", body)).status, 403, `PUT ${path}`);
+    assert.equal((await send(env, `${path}/1`, sup, "DELETE")).status, 403, `DELETE ${path}`);
+  }
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM commands").get().n, 1);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM org").get().n, 1);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM penalties").get().n, 1);
+});
+
+test("support : aucun accès au journal des sanctions ni au journal d'activité, et rien n'en fuit", async () => {
+  const env = supportEnv();
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const sup = await staffToken(env, [ROLE_SUPPORT], { userId: "777777777777777777" });
+  await send(env, "/api/sanctions", mod, "POST", sanction({ player: "Joueur secret", reason: "motif confidentiel" }));
+
+  const list = await call(env, "/api/sanctions", { token: sup });
+  assert.equal(list.status, 403);
+  const text = await list.text();
+  assert.ok(!text.includes("Joueur secret") && !text.includes("confidentiel") && !text.includes("sanctions\":["), "aucune donnée du journal dans la réponse");
+  assert.equal((await call(env, "/api/sanctions?q=secret", { token: sup })).status, 403, "ni par la recherche");
+  assert.equal((await send(env, "/api/sanctions", sup, "POST", sanction())).status, 403);
+  assert.equal((await send(env, "/api/sanctions/1", sup, "DELETE")).status, 403);
+  assert.equal((await call(env, "/api/audit", { token: sup })).status, 403);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM sanctions").get().n, 1, "le journal n'a pas été modifié");
+
+  // la modération, elle, garde son accès
+  assert.equal((await call(env, "/api/sanctions", { token: mod })).status, 200);
+});

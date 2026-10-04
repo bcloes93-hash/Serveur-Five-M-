@@ -15,8 +15,14 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
 
 ## Ce que fait le panel
 - **Connexion Discord** réservée aux membres du serveur ayant un rôle staff.
-- **Deux niveaux** : *Modération* (voit et ajoute des sanctions) et *Administration* (en plus : supprime des sanctions
-  et consulte le journal d'activité).
+- **Trois niveaux**, selon les rôles Discord :
+  - *Support* (facultatif) : lecture seule du barème, des commandes et de l'organigramme. **Pas d'accès** au journal
+    des sanctions, qui contient des données sur des joueurs.
+  - *Modération* : en plus, consulte le journal des sanctions et y ajoute des sanctions.
+  - *Administration* : en plus, supprime des sanctions, modifie le barème, les commandes et l'organigramme, et consulte
+    le journal d'activité.
+
+  Si une personne cumule plusieurs rôles, le niveau le plus élevé l'emporte. Un rôle absent de toutes les listes n'a aucun accès.
 - **Barème des sanctions** (onglet *Sanctions → Barème*) : pour chaque infraction (RDM, troll, insultes…), les paliers à
   appliquer selon les récidives, par exemple avertissement, expulsion, ban 3 jours, ban définitif. Il se lit d'un coup
   d'œil, se recherche, et un bouton « Noter dans le journal » reprend l'infraction dans le journal. Visible par tout le
@@ -93,6 +99,7 @@ Dans le Worker → **Settings** :
 | `DISCORD_GUILD_ID` | Texte | l'ID du serveur |
 | `ROLES_MOD` | Texte | l'ID du rôle Modérateur (plusieurs : séparés par des virgules) |
 | `ROLES_ADMIN` | Texte | les ID des rôles Admin, Manager, Fondateur, séparés par des virgules |
+| `ROLES_SUPPORT` | Texte (facultatif) | l'ID du rôle Support (lecture seule des références, sans le journal des sanctions) |
 | `SESSION_SECRET` | **Secret** | une longue chaîne aléatoire, 48 caractères ou plus (générateur de mot de passe de votre navigateur) |
 | `PANEL_URL` | Texte | `https://bcloes93-hash.github.io/Serveur-Five-M-/staff.html` |
 | `ALLOWED_ORIGIN` | Texte | `https://bcloes93-hash.github.io` (sans `/` final) |

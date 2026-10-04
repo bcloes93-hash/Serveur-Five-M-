@@ -7,7 +7,7 @@
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
   var TYPES = { avertissement: "Avertissement", expulsion: "Expulsion", ban_temp: "Ban temporaire", ban_def: "Ban définitif", note: "Note" };
-  var LEVELS = { mod: "Modération", admin: "Administration" };
+  var LEVELS = { support: "Support", mod: "Modération", admin: "Administration" };
   var ERRORS = {
     denied: "Connexion annulée.",
     state: "La connexion a expiré ou a été interrompue. Réessayez.",
@@ -170,6 +170,8 @@
 
   /* ---------- Outils communs aux formulaires d'administration ---------- */
   function isAdmin() { return !!state.me && state.me.level === "admin"; }
+  // Le journal des sanctions est réservé à la modération et à l'administration (pas au support).
+  function canJournal() { return !!state.me && (state.me.level === "admin" || state.me.level === "mod"); }
 
   function copyText(text, done) {
     var fallback = function () {
@@ -221,14 +223,16 @@
     if (p.notes) li.appendChild(el("p", "penalty__notes", p.notes));
 
     var actions = el("div", "penalty__actions");
-    var note = el("button", "btn btn--small btn--ghost", "Noter dans le journal");
-    note.type = "button";
-    note.addEventListener("click", function () {
-      go("sanctions"); setSub("journal");
-      $("#s-reason").value = p.name;
-      $("#s-player").focus();
-    });
-    actions.appendChild(note);
+    if (canJournal()) {
+      var note = el("button", "btn btn--small btn--ghost", "Noter dans le journal");
+      note.type = "button";
+      note.addEventListener("click", function () {
+        go("sanctions"); setSub("journal");
+        $("#s-reason").value = p.name;
+        $("#s-player").focus();
+      });
+      actions.appendChild(note);
+    }
     if (isAdmin()) {
       actions.appendChild(linkButton("Modifier", function () { startEditPenalty(p); }));
       actions.appendChild(linkButton("Supprimer", function () {
@@ -364,6 +368,7 @@
   /* ---------- Sous-onglets de « Sanctions » : Barème / Journal ---------- */
   var subView = "penalties";
   function setSub(name) {
+    if (name === "journal" && !canJournal()) name = "penalties";
     subView = name;
     $$(".seg__btn[data-sub]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-sub") === name)); });
     $("#sub-penalties").hidden = name !== "penalties";
@@ -659,6 +664,12 @@
     if (me.avatar && /^https:\/\/cdn\.discordapp\.com\//.test(me.avatar)) { img.src = me.avatar; img.hidden = false; }
     else img.hidden = true;
     $$("[data-admin]").forEach(function (t) { t.hidden = me.level !== "admin"; });
+    // Niveau « support » : uniquement le barème (pas de journal des sanctions)
+    $(".staff__sub").hidden = !canJournal();
+    $("#home-sanctions-text").textContent = canJournal()
+      ? "Le barème des sanctions à appliquer et le journal des sanctions enregistrées."
+      : "Le barème des sanctions à appliquer, selon chaque cas.";
+    subView = "penalties";
     show("app");
     go("home");
   }

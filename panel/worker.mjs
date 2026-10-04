@@ -16,6 +16,8 @@
  *   DISCORD_GUILD_ID        identifiant du serveur Discord
  *   ROLES_MOD               identifiants des rôles « modération », séparés par des virgules
  *   ROLES_ADMIN             identifiants des rôles « administration » (admins, manager, fondateur…)
+ *   ROLES_SUPPORT           (optionnel) identifiants des rôles « support » : lecture seule du barème, des commandes
+ *                           et de l'organigramme, sans accès au journal des sanctions
  *   SESSION_SECRET          longue chaîne aléatoire (32 caractères minimum)         (secret)
  *   PANEL_URL               adresse de la page staff, ex. https://…github.io/Serveur-Five-M-/staff.html
  *   ALLOWED_ORIGIN          adresse du site, ex. https://bcloes93-hash.github.io
@@ -27,7 +29,7 @@ const ENC = new TextEncoder();
 const DEC = new TextDecoder();
 
 const TYPES = ["avertissement", "expulsion", "ban_temp", "ban_def", "note"];
-const RANK = { mod: 1, admin: 2 };
+const RANK = { support: 1, mod: 2, admin: 3 };
 const JWT_HEAD = { alg: "HS256", typ: "JWT" };
 const PLATFORMS = ["discord", "fivem"];
 const KINDS = ["founder", "manager", "admin", "mod", "other"];
@@ -179,7 +181,7 @@ function missingConfig(env) {
   const missing = [];
   for (const k of ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_GUILD_ID", "PANEL_URL", "ALLOWED_ORIGIN"]) if (!env[k]) missing.push(k);
   if (String(env.SESSION_SECRET || "").length < 32) missing.push("SESSION_SECRET (32 caractères minimum)");
-  if (!ids(env.ROLES_MOD).length && !ids(env.ROLES_ADMIN).length) missing.push("ROLES_MOD ou ROLES_ADMIN");
+  if (!ids(env.ROLES_MOD).length && !ids(env.ROLES_ADMIN).length && !ids(env.ROLES_SUPPORT).length) missing.push("ROLES_MOD ou ROLES_ADMIN");
   if (!env.DB) missing.push("DB (liaison D1)");
   return missing;
 }
@@ -251,7 +253,9 @@ async function callback(request, env, url) {
 
   if (!user || !/^\d{5,25}$/.test(String(user.id))) return fail("oauth");
   const roles = Array.isArray(member.roles) ? member.roles.map(String) : [];
-  const level = roles.some((r) => ids(env.ROLES_ADMIN).includes(r)) ? "admin" : roles.some((r) => ids(env.ROLES_MOD).includes(r)) ? "mod" : null;
+  // Le niveau le plus élevé l'emporte : administration, puis modération, puis support.
+  const has = (list) => roles.some((r) => ids(list).includes(r));
+  const level = has(env.ROLES_ADMIN) ? "admin" : has(env.ROLES_MOD) ? "mod" : has(env.ROLES_SUPPORT) ? "support" : null;
   if (!level) return fail("not_staff");
 
   const name = clean(member.nick || user.global_name || user.username || "Staff", 40) || "Staff";
@@ -261,7 +265,7 @@ async function callback(request, env, url) {
   const token = await signToken({ sub: String(user.id), name, avatar, lvl: level, iat: now, exp: now + hours * 3600 }, env.SESSION_SECRET);
 
   try {
-    await audit(env, { sub: String(user.id), name }, "connexion", level === "admin" ? "administration" : "modération");
+    await audit(env, { sub: String(user.id), name }, "connexion", { admin: "administration", mod: "modération", support: "support" }[level]);
   } catch { return fail("server"); }   // base absente ou schema.sql non exécuté
   return redirect(`${env.PANEL_URL}#token=${token}`, CLEAR_COOKIE);
 }
@@ -289,7 +293,12 @@ async function api(request, env, url) {
     return reply({ id: user.sub, name: user.name, avatar: user.avatar, level: user.lvl, expires: user.exp });
   }
 
+  // Le journal contient des données sur des joueurs : le niveau « support » n'y a pas accès.
+  const needMod = () => (RANK[user.lvl] < RANK.mod ? reply({ error: "Réservé à la modération et à l'administration." }, 403) : null);
+
   if (path === "/api/sanctions" && request.method === "GET") {
+    const denied = needMod();
+    if (denied) return denied;
     const q = clean(url.searchParams.get("q"), 80);
     let sql = "SELECT id, player, ref, type, reason, duration, staff_name, created_at FROM sanctions WHERE deleted_at IS NULL";
     const args = [];
@@ -304,6 +313,8 @@ async function api(request, env, url) {
   }
 
   if (path === "/api/sanctions" && request.method === "POST") {
+    const denied = needMod();
+    if (denied) return denied;
     const input = await readObject(request);
     if (!input.body) return reply({ error: input.error }, input.status);
     const body = input.body;
