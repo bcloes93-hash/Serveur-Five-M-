@@ -37,9 +37,13 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   identifiant ou motif ; chaque ligne garde l'auteur et la date.
 - **Journal d'activité** : connexions, sanctions ajoutées et supprimées. Une suppression est « douce » : la ligne reste
   en base, seul l'affichage la masque.
-- **Commandes** : deux listes, *Commandes Discord* et *Commandes FiveM*, avec recherche, regroupement par catégorie et
-  bouton « Copier ». Visibles par tout le staff connecté ; l'administration les ajoute, les modifie et les supprime
-  depuis le panel. Elles sont stockées dans la base protégée, **jamais dans le dépôt public**.
+- **Commandes** : deux listes, *Commandes Discord* et *Commandes FiveM*. Sous chacune, des **sous-catégories**
+  (Joueur, Support, Modérateur, Admin, Responsable, Fondateur, Console serveur… selon vos catégories) : un clic sur l'une
+  affiche ses commandes, avec leur nombre ; « Toutes » affiche l'ensemble. La recherche porte toujours sur toutes les
+  catégories, et un bouton « Copier » récupère la commande. Le staff connecté ne voit que les commandes de son niveau et
+  des niveaux inférieurs ; l'administration les ajoute, les modifie et les supprime depuis le panel. Elles sont stockées
+  dans la base protégée, **jamais dans le dépôt public**. Les sous-catégories viennent du champ « Catégorie » de chaque
+  commande (le numéro devant, comme « 3 · », n'est pas affiché : il sert uniquement à garder l'ordre).
 - **Organigramme** : la hiérarchie de l'équipe (groupes, niveaux, couleurs), visible par le staff connecté et modifiable
   par l'administration.
 - Réservés pour plus tard : suivi des candidatures, actions en direct sur le serveur FiveM.

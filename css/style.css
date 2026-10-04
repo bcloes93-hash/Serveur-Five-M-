@@ -552,6 +552,26 @@ a:hover { color: #7be6ff; }
 .staff__who strong { font-size: 1.1rem; overflow-wrap: anywhere; }
 .staff__level { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cyan); }
 .staff__tabs { flex-wrap: wrap; border-radius: 22px; }
+/* Panel : toute la largeur de l'écran (menu plus à gauche, contenu plus grand) */
+.page-wide { --maxw: 2400px; --gutter: 24px; }
+/* Les formulaires et la recherche ne s'étirent pas démesurément sur un très grand écran */
+.staff__main .form { max-width: 1000px; }
+.staff__main .staff__search { max-width: 560px; }
+.cmd__items { grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
+
+/* Sous-catégories des commandes (Joueur, Support, Modérateur…) */
+.subseg { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.subseg[hidden] { display: none; }
+.subseg + .staff__search { margin-top: 20px; }
+.subseg__btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; cursor: pointer;
+  font: 600 0.92rem/1.2 var(--font-body); color: var(--muted); background: var(--surface); border: 1px solid var(--border);
+  transition: color .2s, background .2s, border-color .2s;
+}
+.subseg__btn:hover { color: var(--text); background: var(--surface-hover); }
+.subseg__btn[aria-pressed="true"] { color: #fff; border-color: transparent; background: var(--grad-btn); box-shadow: 0 4px 18px rgba(255, 60, 172, 0.28); }
+.subseg__n { padding: 1px 8px; border-radius: 999px; font-size: 0.78rem; background: rgba(255, 255, 255, 0.12); }
+
 /* Disposition en deux colonnes : menu vertical à gauche, contenu à droite */
 .staff .container > #staff-app { max-width: none; }
 .staff__layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; align-items: start; }

@@ -395,7 +395,7 @@
   $$(".seg__btn[data-sub]").forEach(function (b) { b.addEventListener("click", function () { setSub(b.getAttribute("data-sub")); }); });
 
   /* ---------- Commandes (Discord / FiveM) ---------- */
-  var cmdState = { platform: "discord", items: [], editing: null };
+  var cmdState = { platform: "discord", items: [], editing: null, cat: { discord: null, fivem: null } };   // cat : catégorie choisie par plateforme (null = la première, "*" = toutes)
   var cList = $("#c-list"), cCount = $("#c-count"), cSearch = $("#c-search");
   var cForm = $("#command-form"), cStatus = $("#c-status");
 
@@ -433,23 +433,52 @@
     return li;
   }
 
+  // « 3 · Modérateur (sl_mod) » -> « Modérateur (sl_mod) » : le numéro ne sert qu'à garder l'ordre.
+  function catLabel(cat) { return String(cat).replace(/^\s*\d+\s*[·.:)\-]\s*/, "") || cat; }
+
+  function renderSubcats(all) {
+    var bar = $("#c-subcats");
+    clear(bar);
+    var cats = [], count = {};
+    all.forEach(function (c) { if (!count[c.cat]) { count[c.cat] = 0; cats.push(c.cat); } count[c.cat]++; });
+    bar.hidden = cats.length === 0;
+    var q = cSearch.value.trim();
+    // Une recherche porte toujours sur toutes les catégories ; sans recherche, on affiche la catégorie choisie.
+    var chosen = cmdState.cat[cmdState.platform];
+    var active = q ? "*" : (chosen === "*" || cats.indexOf(chosen) !== -1 ? chosen : cats[0]);
+    var make = function (key, label, n) {
+      var b = el("button", "subseg__btn", label);
+      b.type = "button";
+      b.setAttribute("data-cat", key);
+      b.setAttribute("aria-pressed", String(active === key));
+      b.appendChild(el("span", "subseg__n", String(n)));
+      b.addEventListener("click", function () { cmdState.cat[cmdState.platform] = key; if (cSearch.value) cSearch.value = ""; renderCommands(); });
+      bar.appendChild(b);
+    };
+    cats.forEach(function (c) { make(c, catLabel(c), count[c]); });
+    if (cats.length > 1) make("*", "Toutes", all.length);
+    return { active: active, cats: cats };
+  }
+
   function renderCommands() {
     var q = cSearch.value.trim().toLowerCase();
     var all = cmdState.items.filter(function (c) { return c.platform === cmdState.platform; });
-    var shown = all.filter(function (c) { return !q || (c.cmd + " " + c.descr + " " + c.cat + " " + c.example).toLowerCase().indexOf(q) !== -1; });
+    var sub = renderSubcats(all);
+    var inScope = all.filter(function (c) { return sub.active === "*" || c.cat === sub.active; });
+    var shown = inScope.filter(function (c) { return !q || (c.cmd + " " + c.descr + " " + c.cat + " " + c.example).toLowerCase().indexOf(q) !== -1; });
     clear(cList);
     if (!all.length) {
       cCount.textContent = "";
       cList.appendChild(el("p", "cmd__empty", isAdmin() ? "Aucune commande pour le moment. Ajoutez-en avec le formulaire ci-dessous." : "Aucune commande pour le moment."));
       return;
     }
-    cCount.textContent = shown.length + (shown.length > 1 ? " commandes" : " commande");
+    cCount.textContent = shown.length + (shown.length > 1 ? " commandes" : " commande") + (sub.active !== "*" ? " dans « " + catLabel(sub.active) + " »" : "");
     if (!shown.length) { cList.appendChild(el("p", "cmd__empty", "Aucune commande ne correspond à votre recherche.")); return; }
     var cats = [], byCat = {};
     shown.forEach(function (c) { if (!byCat[c.cat]) { byCat[c.cat] = []; cats.push(c.cat); } byCat[c.cat].push(c); });
     cats.forEach(function (cat) {
       var group = el("section", "cmd__group");
-      group.appendChild(el("h3", "cmd__cat", cat));
+      group.appendChild(el("h3", "cmd__cat", catLabel(cat)));
       var ul = el("ul", "cmd__items");
       byCat[cat].forEach(function (c) { ul.appendChild(renderCommand(c)); });
       group.appendChild(ul);
@@ -515,6 +544,7 @@
     req.then(function () {
       var p = body.platform;
       resetCommandForm();
+      cmdState.cat[p] = (body.cat || "").trim() || "Général";
       setPlatform(p);
       return loadCommands().then(function () {
         cStatus.className = "form__status form__status--ok";
