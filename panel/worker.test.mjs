@@ -418,30 +418,81 @@ test("organigramme : tout le staff lit, seule l'administration modifie ; tout es
   assert.deepEqual(audit.slice(0, 3).map((a) => a.action), ["organigramme : membre retiré", "organigramme : membre modifié", "organigramme : membre ajouté"]);
 });
 
-test("organigramme : validation et tri par niveau puis ordre", async () => {
+test("organigramme : validation, « à placer » par défaut, tri par niveau puis ordre", async () => {
   const env = makeEnv();
   const admin = await staffToken(env, [ROLE_ADMIN]);
   const post = (b) => send(env, "/api/org", admin, "POST", b);
-  for (const bad of [{ name: "" }, { role: " " }, { grp: "" }, { tier: 0 }, { tier: 10 }, { tier: 1.5 }, { tier: "abc" }, { position: -1 }, { position: 100 }, { kind: "roi" }]) {
+  for (const bad of [{ name: "" }, { name: "   " }, { position: -1 }, { position: 100 }, { position: 1.5 }, { kind: "roi" }, { kind: "manager" }, { kind: "constructor" }, { kind: "__proto__" }]) {
     assert.equal((await post(memberBody(bad))).status, 400, JSON.stringify(bad));
   }
   assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM org").get().n, 0);
-  await post(memberBody({ name: "C", tier: 2, position: 1 }));
-  await post(memberBody({ name: "B", tier: 2, position: 0 }));
-  await post(memberBody({ name: "A", tier: 1 }));
-  await post(memberBody({ name: "D", tier: "3", position: "", kind: undefined }));
+  await post(memberBody({ name: "C", kind: "mgr_rp", position: 1 }));
+  await post(memberBody({ name: "B", kind: "mgr_rp", position: 0 }));
+  await post(memberBody({ name: "A", kind: "founder" }));
+  await post(memberBody({ name: "D", kind: undefined, position: "", role: "" }));
   const rows = (await (await call(env, "/api/org", { token: admin })).json()).org;
   assert.deepEqual(rows.map((r) => r.name), ["A", "B", "C", "D"]);
-  assert.equal(rows[3].kind, "other", "couleur par défaut"); assert.equal(rows[3].tier, 3);
+  assert.deepEqual([rows[3].kind, rows[3].tier, rows[3].grp, rows[3].role], ["other", 9, "À placer", "À placer"], "sans case : à placer");
 });
 
-test("organigramme pré-rempli avec seed.sql : l'équipe actuelle dans le bon ordre", async () => {
+test("organigramme : chaque case de l'arbre fixe le niveau, le groupe et le titre par défaut (rien n'est repris du navigateur)", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const expected = {
+    founder: [1, "Direction", "Fondateur"],
+    mgr_staff: [2, "Management", "Responsable Staff"], mgr_rp: [2, "Management", "Responsable RP"], mgr_com: [2, "Management", "Responsable Communauté"],
+    adm_legal: [3, "Administration", "Référent Légal"], adm_illegal: [3, "Administration", "Référent Illégal"], adm_rp: [3, "Administration", "Référent RP"],
+    adm_mod: [3, "Administration", "Référent Modération"], adm_event: [3, "Administration", "Référent Événementiel"], adm_tech: [3, "Administration", "Référent Technique"],
+    mod_legal: [4, "Modération", "Modérateur Légal"], mod_illegal: [4, "Modération", "Modérateur Illégal"], mod_rp: [4, "Modération", "Modérateur RP"], mod_com: [4, "Modération", "Modérateur Communauté"],
+    sup_assist: [5, "Support", "Support Assistance Joueurs"], sup_tickets: [5, "Support", "Support Tickets"], sup_new: [5, "Support", "Support Nouveaux Joueurs"], sup_bugs: [5, "Support", "Support Bugs & Signalements"],
+    other: [9, "À placer", "À placer"],
+  };
+  for (const [kind, [tier, grp, label]] of Object.entries(expected)) {
+    // le navigateur envoie n'importe quoi : le serveur impose le niveau et le groupe, et le titre par défaut si on n'en donne pas
+    const res = await send(env, "/api/org", admin, "POST", { name: "P-" + kind, role: "", grp: "Pirate", tier: 1, kind, position: 0 });
+    assert.equal(res.status, 201, kind);
+    const row = env.DB.raw.prepare("SELECT * FROM org WHERE name = ?").get("P-" + kind);
+    assert.deepEqual([row.tier, row.grp, row.role, row.kind], [tier, grp, label, kind], kind);
+  }
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM org").get().n, Object.keys(expected).length);
+  // un titre personnalisé est conservé, et déplacer quelqu'un (PUT) recalcule le niveau et le groupe
+  const { id } = await (await send(env, "/api/org", admin, "POST", memberBody({ name: "Taalback", role: "Admin · Dev", kind: "other" }))).json();
+  assert.equal((await send(env, `/api/org/${id}`, admin, "PUT", { name: "Taalback", role: "Admin · Dev", kind: "adm_legal", position: 2 })).status, 200);
+  const moved = env.DB.raw.prepare("SELECT * FROM org WHERE id = ?").get(id);
+  assert.deepEqual([moved.tier, moved.grp, moved.role, moved.kind, moved.position], [3, "Administration", "Admin · Dev", "adm_legal", 2]);
+});
+
+test("organigramme : une personne peut être dans plusieurs cases, mais une seule fois dans la même", async () => {
+  const env = makeEnv();
+  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const mod = await staffToken(env, [ROLE_MOD]);
+  const post = (b) => send(env, "/api/org", admin, "POST", b);
+  const put = (id, b) => send(env, `/api/org/${id}`, admin, "PUT", b);
+  const a = await (await post(memberBody({ name: "Isar", kind: "adm_legal" }))).json();
+  assert.equal((await post(memberBody({ name: "Isar", kind: "adm_rp" }))).status, 201, "copie dans une autre case");
+  assert.equal((await post(memberBody({ name: "Isar", kind: "mod_com" }))).status, 201, "et une 3e");
+  assert.equal((await post(memberBody({ name: "Isar", kind: "adm_legal" }))).status, 409, "même case : refusé");
+  assert.equal((await post(memberBody({ name: "ISAR", kind: "adm_legal" }))).status, 409, "même case, casse différente : refusé");
+  assert.equal((await post(memberBody({ name: "Isar", kind: "other" }))).status, 201, "la réserve compte comme une case");
+  assert.equal((await post(memberBody({ name: "Isar", kind: "other" }))).status, 409);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM org WHERE name = 'Isar'").get().n, 4);
+  const b = await (await post(memberBody({ name: "Taalback", kind: "adm_legal" }))).json();
+  assert.equal((await put(b.id, memberBody({ name: "Taalback", kind: "adm_legal", role: "Chef" }))).status, 200, "modifier sans changer de case : autorisé");
+  assert.equal((await put(a.id, memberBody({ name: "Isar", kind: "adm_rp" }))).status, 409, "déplacer vers une case où la personne est déjà : refusé");
+  assert.equal((await put(a.id, memberBody({ name: "Isar", kind: "mod_rp" }))).status, 200, "déplacer vers une case libre : accepté");
+  assert.equal((await post(memberBody({ name: "Isar", kind: "adm_legal" }))).status, 201, "l'ancienne case est de nouveau libre");
+  assert.equal((await send(env, "/api/org", mod, "POST", memberBody({ name: "Autre", kind: "adm_tech" }))).status, 403, "toujours réservé à l'administration");
+  const { audit } = await (await call(env, "/api/audit", { token: admin })).json();
+  assert.equal(audit.filter((x) => x.action === "organigramme : membre ajouté").length >= 6, true, "chaque copie est journalisée");
+});
+
+test("organigramme pré-rempli avec seed.sql : le fondateur est en place, l'équipe attend d'être placée", async () => {
   const env = makeEnv();
   env.DB.raw.exec(readFileSync(new URL("./seed.sql", import.meta.url), "utf8"));
   const mod = await staffToken(env, [ROLE_MOD]);
   const rows = (await (await call(env, "/api/org", { token: mod })).json()).org;
-  assert.deepEqual(rows.map((r) => `${r.tier}:${r.name}`), ["1:Jaguuar_", "2:Fumeurdefrap", "3:Taalback", "3:Isar", "3:Trafalgar", "4:Moncef"]);
-  assert.deepEqual([...new Set(rows.map((r) => r.grp))], ["Direction", "Administration", "Modération"]);
+  assert.deepEqual(rows.map((r) => `${r.tier}:${r.name}`), ["1:Jaguuar_", "9:Fumeurdefrap", "9:Taalback", "9:Isar", "9:Trafalgar", "9:Moncef"]);
+  assert.deepEqual(rows.map((r) => r.kind), ["founder", "other", "other", "other", "other", "other"]);
 });
 
 /* ---------- Barème des sanctions ---------- */

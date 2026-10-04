@@ -1,7 +1,7 @@
 INSERT INTO org (name, role, grp, tier, kind, position) VALUES
-  ('Jaguuar_',     'Fondateur · Développeur', 'Direction',      1, 'founder', 0),
-  ('Fumeurdefrap', 'Manager',                 'Administration', 2, 'manager', 0),
-  ('Taalback',     'Admin',                   'Administration', 3, 'admin',   0),
-  ('Isar',         'Admin',                   'Administration', 3, 'admin',   1),
-  ('Trafalgar',    'Admin',                   'Administration', 3, 'admin',   2),
-  ('Moncef',       'Modérateur',              'Modération',     4, 'mod',     0);
+  ('Jaguuar_',     'Fondateur · Développeur', 'Direction', 1, 'founder', 0),
+  ('Fumeurdefrap', 'Manager',                 'À placer',  9, 'other',   0),
+  ('Taalback',     'Admin',                   'À placer',  9, 'other',   1),
+  ('Isar',         'Admin',                   'À placer',  9, 'other',   2),
+  ('Trafalgar',    'Admin',                   'À placer',  9, 'other',   3),
+  ('Moncef',       'Modérateur',              'À placer',  9, 'other',   4);

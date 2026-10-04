@@ -37,7 +37,31 @@ const RANK = { support: 1, mod: 2, admin: 3, manager: 4, founder: 5 };
 const LEVEL_NAMES = Object.keys(RANK);
 const JWT_HEAD = { alg: "HS256", typ: "JWT" };
 const PLATFORMS = ["discord", "fivem"];
-const KINDS = ["founder", "manager", "admin", "mod", "other"];
+// Cases de l'organigramme (un arbre : fondateur, managers, admins, modérateurs, support, chacun avec ses pôles).
+// Le niveau et le groupe en découlent : on ne s'en remet donc jamais à ce qu'envoie le navigateur.
+// « other » = « à placer » (réserve hors de l'arbre). Une personne peut figurer dans plusieurs cases (une ligne par case).
+const NODES = {
+  founder: { tier: 1, grp: "Direction", label: "Fondateur" },
+  mgr_staff: { tier: 2, grp: "Management", label: "Responsable Staff" },
+  mgr_rp: { tier: 2, grp: "Management", label: "Responsable RP" },
+  mgr_com: { tier: 2, grp: "Management", label: "Responsable Communauté" },
+  adm_legal: { tier: 3, grp: "Administration", label: "Référent Légal" },
+  adm_illegal: { tier: 3, grp: "Administration", label: "Référent Illégal" },
+  adm_rp: { tier: 3, grp: "Administration", label: "Référent RP" },
+  adm_mod: { tier: 3, grp: "Administration", label: "Référent Modération" },
+  adm_event: { tier: 3, grp: "Administration", label: "Référent Événementiel" },
+  adm_tech: { tier: 3, grp: "Administration", label: "Référent Technique" },
+  mod_legal: { tier: 4, grp: "Modération", label: "Modérateur Légal" },
+  mod_illegal: { tier: 4, grp: "Modération", label: "Modérateur Illégal" },
+  mod_rp: { tier: 4, grp: "Modération", label: "Modérateur RP" },
+  mod_com: { tier: 4, grp: "Modération", label: "Modérateur Communauté" },
+  sup_assist: { tier: 5, grp: "Support", label: "Support Assistance Joueurs" },
+  sup_tickets: { tier: 5, grp: "Support", label: "Support Tickets" },
+  sup_new: { tier: 5, grp: "Support", label: "Support Nouveaux Joueurs" },
+  sup_bugs: { tier: 5, grp: "Support", label: "Support Bugs & Signalements" },
+  other: { tier: 9, grp: "À placer", label: "À placer" },
+};
+const KINDS = Object.keys(NODES);
 const STEP_TYPES = ["avertissement", "expulsion", "ban_temp", "ban_def", "autre"];
 const MAX_STEPS = 5;
 const MAX_BODY_BYTES = 5000;
@@ -152,15 +176,20 @@ function readSteps(json) {
 }
 
 function parseMember(body) {
-  const tier = Number(body.tier);
+  const kind = String(body.kind || "other");
+  if (!KINDS.includes(kind)) return { error: "Case de l'organigramme invalide." };
+  const node = NODES[kind];
   const position = body.position === "" || body.position == null ? 0 : Number(body.position);
-  const value = { name: oneLine(body.name, 40), role: oneLine(body.role, 60), grp: oneLine(body.grp, 30), tier, kind: String(body.kind || "other"), position };
+  const value = {
+    name: oneLine(body.name, 40),
+    role: oneLine(body.role, 60) || node.label,
+    grp: node.grp,
+    tier: node.tier,
+    kind,
+    position,
+  };
   if (!value.name) return { error: "Le nom est obligatoire." };
-  if (!value.role) return { error: "Le rôle (libellé affiché) est obligatoire." };
-  if (!value.grp) return { error: "Le groupe est obligatoire (ex. Direction, Administration)." };
-  if (!Number.isInteger(tier) || tier < 1 || tier > 9) return { error: "Le niveau doit être un nombre entier de 1 à 9." };
   if (!Number.isInteger(position) || position < 0 || position > 99) return { error: "L'ordre doit être un nombre entier de 0 à 99." };
-  if (!KINDS.includes(value.kind)) return { error: "Couleur de carte invalide." };
   return { value };
 }
 
@@ -388,6 +417,8 @@ async function api(request, env, url) {
       insert: ["INSERT INTO org (name, role, grp, tier, kind, position) VALUES (?, ?, ?, ?, ?, ?)", (v) => [v.name, v.role, v.grp, v.tier, v.kind, v.position]],
       update: ["UPDATE org SET name = ?, role = ?, grp = ?, tier = ?, kind = ?, position = ? WHERE id = ?", (v, id) => [v.name, v.role, v.grp, v.tier, v.kind, v.position, id]],
       name: "SELECT name AS label FROM org WHERE id = ?", remove: "DELETE FROM org WHERE id = ?",
+      // Une personne peut être dans plusieurs cases, mais une seule fois dans la même.
+      dup: ["SELECT id FROM org WHERE name = ? COLLATE NOCASE AND kind = ? AND id != ?", (v, id) => [v.name, v.kind, id], "Cette personne est déjà dans cette case."],
       actions: { add: "organigramme : membre ajouté", edit: "organigramme : membre modifié", del: "organigramme : membre retiré" },
     },
   };
@@ -425,6 +456,11 @@ async function api(request, env, url) {
     if (parsed.error) return reply({ error: parsed.error }, 400);
     if (res.scoped && RANK[parsed.value.min_level] > RANK[user.lvl]) {
       return reply({ error: "Vous ne pouvez pas réserver une commande à un niveau supérieur au vôtre." }, 403);
+    }
+
+    if (res.dup) {
+      const taken = await env.DB.prepare(res.dup[0]).bind(...res.dup[1](parsed.value, request.method === "PUT" ? Number(itemMatch[2]) : 0)).first();
+      if (taken) return reply({ error: res.dup[2] }, 409);
     }
 
     if (request.method === "POST") {

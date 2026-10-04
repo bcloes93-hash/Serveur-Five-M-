@@ -314,15 +314,22 @@
               <section id="view-org" role="tabpanel" aria-labelledby="stab-org" hidden>
                 <div class="panelbox">
                   <h2 class="tabpanel__title">Organigramme</h2>
-                  <p class="tabpanel__lead">La hiérarchie de l'équipe staff, du haut vers le bas.</p>
+                  <p class="tabpanel__lead">L'équipe staff au complet, du haut vers le bas, avec les pôles de chaque rang.</p>
+                  <div class="orgbar" data-admin hidden>
+                    <p class="staff__hint">Glissez une carte pour la <strong>déplacer</strong> ; maintenez <strong>Ctrl</strong> (<strong>Option</strong> sur Mac) en glissant pour la <strong>copier</strong> dans un autre pôle. Sans souris : ouvrez les outils, puis « Déplacer vers… », ou « Copier » suivi de « Coller ici ». Une même personne peut figurer dans plusieurs pôles. Ce schéma représente l'équipe : il ne change <strong>ni les rôles Discord, ni les accès au panel</strong>.</p>
+                    <button class="btn btn--ghost btn--small" type="button" id="org-edit" aria-pressed="false">Afficher les outils (copier, déplacer, retirer)</button>
+                  </div>
+                  <p class="org__clip" id="org-clip" hidden><span id="org-clip-text"></span> <button class="btn btn--ghost btn--small" type="button" id="org-clip-stop">Terminer la copie</button></p>
                   <p class="sr-only" id="org-summary"></p>
                   <div class="org__chart" id="org-chart"></div>
+                  <div class="org__legend" id="org-legend" hidden></div>
+                  <p class="form__status" id="org-status" role="status" aria-live="polite"></p>
                   <p class="staff__hint" id="org-hint" aria-live="polite"></p>
                 </div>
 
                 <div class="panelbox" data-admin hidden>
                   <h2 class="tabpanel__title" id="m-form-title">Gérer l'organigramme</h2>
-                  <p class="tabpanel__lead">Réservé à l'administration. Les personnes d'un même <strong>niveau</strong> sont placées sur la même ligne (1 = tout en haut). Le <strong>groupe</strong> est l'encadré affiché autour de leur ligne.</p>
+                  <p class="tabpanel__lead">Réservé à l'administration. Ajoutez une personne (elle arrive dans « À placer » si vous ne choisissez pas de case), puis glissez-la dans l'arbre. Le titre affiché est facultatif : sans titre, c'est le nom de la case qui s'affiche.</p>
                   <form class="form" id="member-form" novalidate>
                     <div class="form__body">
                       <div class="form__row form__row--even">
@@ -331,34 +338,47 @@
                           <input id="m-name" name="name" type="text" required maxlength="40" autocomplete="off">
                         </div>
                         <div class="field">
-                          <label for="m-role">Rôle affiché <span class="req" aria-hidden="true">*</span></label>
-                          <input id="m-role" name="role" type="text" required maxlength="60" autocomplete="off" placeholder="ex. Admin">
+                          <label for="m-role">Titre affiché (facultatif)</label>
+                          <input id="m-role" name="role" type="text" maxlength="60" autocomplete="off" placeholder="ex. Fondateur · Développeur">
                         </div>
                       </div>
                       <div class="form__row form__row--even">
                         <div class="field">
-                          <label for="m-grp">Groupe <span class="req" aria-hidden="true">*</span></label>
-                          <input id="m-grp" name="grp" type="text" required maxlength="30" autocomplete="off" list="m-grps" placeholder="ex. Administration">
-                          <datalist id="m-grps"></datalist>
-                        </div>
-                        <div class="field">
-                          <label for="m-tier">Niveau (1 à 9) <span class="req" aria-hidden="true">*</span></label>
-                          <input id="m-tier" name="tier" type="number" inputmode="numeric" min="1" max="9" step="1" required>
-                        </div>
-                      </div>
-                      <div class="form__row form__row--even">
-                        <div class="field">
-                          <label for="m-kind">Couleur de la carte</label>
+                          <label for="m-kind">Case dans l'organigramme</label>
                           <select id="m-kind" name="kind">
-                            <option value="founder">Rose (fondateur)</option>
-                            <option value="manager">Violet (manager)</option>
-                            <option value="admin" selected>Cyan (admin)</option>
-                            <option value="mod">Vert (modérateur)</option>
-                            <option value="other">Gris (autre)</option>
+                            <option value="other">À placer (réserve)</option>
+                            <optgroup label="Direction">
+                              <option value="founder">Fondateur</option>
+                            </optgroup>
+                            <optgroup label="Managers">
+                              <option value="mgr_staff">Responsable Staff</option>
+                              <option value="mgr_rp">Responsable RP</option>
+                              <option value="mgr_com">Responsable Communauté</option>
+                            </optgroup>
+                            <optgroup label="Admins">
+                              <option value="adm_legal">Référent Légal</option>
+                              <option value="adm_illegal">Référent Illégal</option>
+                              <option value="adm_rp">Référent RP</option>
+                              <option value="adm_mod">Référent Modération</option>
+                              <option value="adm_event">Référent Événementiel</option>
+                              <option value="adm_tech">Référent Technique</option>
+                            </optgroup>
+                            <optgroup label="Modérateurs">
+                              <option value="mod_legal">Modérateur Légal</option>
+                              <option value="mod_illegal">Modérateur Illégal</option>
+                              <option value="mod_rp">Modérateur RP</option>
+                              <option value="mod_com">Modérateur Communauté</option>
+                            </optgroup>
+                            <optgroup label="Support">
+                              <option value="sup_assist">Support Assistance Joueurs</option>
+                              <option value="sup_tickets">Support Tickets</option>
+                              <option value="sup_new">Support Nouveaux Joueurs</option>
+                              <option value="sup_bugs">Support Bugs &amp; Signalements</option>
+                            </optgroup>
                           </select>
                         </div>
                         <div class="field">
-                          <label for="m-position">Ordre dans le niveau (facultatif)</label>
+                          <label for="m-position">Ordre dans la case (facultatif)</label>
                           <input id="m-position" name="position" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="0">
                         </div>
                       </div>

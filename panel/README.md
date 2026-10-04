@@ -44,8 +44,21 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   des niveaux inférieurs ; l'administration les ajoute, les modifie et les supprime depuis le panel. Elles sont stockées
   dans la base protégée, **jamais dans le dépôt public**. Les sous-catégories viennent du champ « Catégorie » de chaque
   commande (le numéro devant, comme « 3 · », n'est pas affiché : il sert uniquement à garder l'ordre).
-- **Organigramme** : la hiérarchie de l'équipe (groupes, niveaux, couleurs), visible par le staff connecté et modifiable
-  par l'administration.
+- **Organigramme** : un arbre par rang et par pôle — Fondateur ; 3 Managers (Responsable Staff, RP, Communauté) ;
+  6 Admins (Référent Légal, Illégal, RP, Modération, Événementiel, Technique) ; 4 Modérateurs (Légal, Illégal, RP,
+  Communauté) ; 4 Support (Assistance Joueurs, Tickets, Nouveaux Joueurs, Bugs & Signalements) — avec une légende
+  « Pôles d'orientation » (un clic met en avant les cases d'un pôle). Visible par tout le staff connecté.
+  L'administration peut :
+  - **glisser** une carte dans une autre case pour **déplacer** la personne ;
+  - **Ctrl + glisser** (Option sur Mac) pour la **copier** : une même personne peut figurer dans plusieurs pôles ;
+  - sans souris (téléphone, clavier) : bouton *Afficher les outils*, puis « Déplacer vers… », ou « Copier » suivi de
+    « Coller ici » dans chaque case voulue ; « Retirer » enlève la personne d'une seule case ;
+  - ajouter quelqu'un depuis le formulaire : sans case choisie, il arrive dans **« À placer »** (en haut du schéma),
+    d'où on le glisse dans l'arbre. Les personnes déjà enregistrées avant cette version (anciens rangs) y arrivent aussi.
+
+  Ce schéma est une **représentation** de l'équipe : déplacer quelqu'un n'en change **ni les rôles Discord, ni les accès
+  au panel** (qui viennent toujours des rôles Discord). Les noms des cases sont fixés dans le code (`worker.mjs` et
+  `staff.js`) ; pour en renommer ou en ajouter, il faut modifier ces deux fichiers.
 - Réservés pour plus tard : suivi des candidatures, actions en direct sur le serveur FiveM.
 
 ## Ce qu'il vous faut
@@ -92,7 +105,7 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 | `sanctions` | Journal : joueur, identifiant facultatif, type (`avertissement`, `expulsion`, `ban_temp`, `ban_def`, `note`), motif, durée, auteur, date ; suppression « douce » (`deleted_at`) |
 | `audit` | Journal d'activité : connexions, ajouts, modifications et suppressions |
 | `commands` | Commandes Discord / FiveM (`platform`, catégorie, commande, description, exemple, `min_level` = niveau minimal pour la voir) |
-| `org` | Organigramme : nom, rôle affiché, groupe (`grp`), niveau (`tier`, 1 = haut), couleur (`kind`), ordre |
+| `org` | Organigramme : une ligne par personne **et par case** (nom, titre affiché, `kind` = la case, ex. `adm_legal`, ou `other` = à placer ; `grp` et `tier` sont déduits de la case par le serveur ; ordre) |
 | `penalties` | Barème : catégorie, infraction (`name`), paliers au format JSON (`steps`), précisions (`notes`) |
 
 ## Étape 4 – Relier la base et renseigner les réglages
@@ -150,6 +163,12 @@ ALTER TABLE commands ADD COLUMN min_level TEXT NOT NULL DEFAULT 'support';
 ([`migration-niveaux-commandes.sql`](./migration-niveaux-commandes.sql)). Toutes les commandes existantes restent alors
 visibles par tout le staff, jusqu'à ce qu'un niveau minimal leur soit attribué (depuis le panel, bouton *Modifier*). Ordre
 conseillé : d'abord la base, ensuite le code du relais (`worker.mjs`), puis les réglages `ROLES_MANAGER` et `ROLES_FOUNDER`.
+
+### Mise à jour : organigramme par pôles
+Aucune modification de la base n'est nécessaire (la table `org` est inchangée). Collez simplement le nouveau
+[`worker.mjs`](./worker.mjs) dans le relais du panel (*Edit code* → coller → **Deploy**), **avant** d'utiliser le nouvel
+organigramme : l'ancien code refuserait les nouvelles cases. Les membres déjà enregistrés (sauf le fondateur) apparaissent
+dans « À placer » : glissez-les dans leurs pôles.
 
 ## À savoir
 - **Données privées** : les commandes et l'organigramme du panel ne sont lisibles qu'après connexion avec un rôle staff.
