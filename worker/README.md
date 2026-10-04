@@ -13,6 +13,10 @@ toute mention `@everyone`, et peut limiter le nombre de candidatures par personn
 Site (formulaire) ──► Relais Cloudflare (vérifie, garde le secret) ──► Salon Discord
 ```
 
+Chaque candidature reçoit un **numéro unique** (par exemple `WL-7M4VCC` ou `STAFF-K3P9QX`). Le candidat le voit
+après l'envoi, et il est écrit dans le titre, le texte et le pied du message Discord : le staff peut le chercher
+avec la recherche Discord et le candidat peut le citer s'il contacte l'équipe.
+
 ## Ce qu'il vous faut
 - Un compte gratuit sur [Cloudflare](https://dash.cloudflare.com/sign-up).
 - Les droits d'administrateur sur votre serveur Discord.
@@ -78,3 +82,8 @@ Une fois ce changement publié sur `main`, envoyez une candidature de test : ell
 ```bash
 node --test worker/relay.test.mjs
 ```
+
+## Mettre à jour le relais
+Quand le fichier [`relay.mjs`](./relay.mjs) change sur GitHub, le relais **n'est pas mis à jour tout seul** :
+sur Cloudflare, ouvrez le Worker → **Edit code**, remplacez tout le contenu par le nouveau `relay.mjs`
+(`Ctrl+A`, puis coller), puis **Deploy**. Les variables et le KV restent en place.

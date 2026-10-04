@@ -427,6 +427,9 @@ a:hover { color: #7be6ff; }
 .result:focus { outline: none; }
 .result__title { margin: 0 0 8px; font-family: var(--font-display); font-weight: 400; font-size: 1.9rem; letter-spacing: 0.04em; color: var(--green); }
 .result__msg { margin: 0 0 16px; color: var(--text); }
+.result__id { margin: 0 0 18px; padding: 14px 18px; border-radius: 12px; background: rgba(0, 0, 0, 0.3); border: 1px dashed rgba(52, 211, 153, 0.6); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.result__code { font: 700 1.5rem/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.08em; color: #fff; user-select: all; }
+.result__idhint { flex-basis: 100%; font-size: 0.9rem; color: var(--muted); }
 .result__box {
   width: 100%; margin-bottom: 16px; padding: 14px; border-radius: 12px; font: 0.95rem/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color: var(--text); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border); resize: vertical; color-scheme: dark;

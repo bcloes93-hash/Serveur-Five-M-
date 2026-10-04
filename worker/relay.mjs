@@ -19,6 +19,7 @@
 const SCHEMAS = {
   whitelist: {
     title: "Candidature Whitelist",
+    prefix: "WL",
     color: 0xff3cac,
     webhook: "WEBHOOK_WHITELIST",
     ping: "PING_ROLE_WHITELIST",
@@ -34,6 +35,7 @@ const SCHEMAS = {
   },
   staff: {
     title: "Candidature Staff",
+    prefix: "STAFF",
     color: 0x22d3ff,
     webhook: "WEBHOOK_STAFF",
     ping: "PING_ROLE_STAFF",
@@ -48,6 +50,16 @@ const SCHEMAS = {
     checks: ["reglement"],
   },
 };
+
+// Numéro de candidature : préfixe + 6 caractères sans I, O, 0, 1 (faciles à lire et à dicter).
+// 32 caractères : 256 est un multiple de 32, donc le tirage au sort est parfaitement uniforme.
+const ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const ID_FORMAT = /^(?:WL|STAFF)-[A-HJ-NP-Z2-9]{6}$/;
+
+function newId(prefix) {
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return prefix + "-" + [...bytes].map((b) => ID_ALPHABET[b % 32]).join("");
+}
 
 const MAX_BODY_BYTES = 20000;
 const WEBHOOK_PREFIX = /^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/;
@@ -130,24 +142,29 @@ export default {
     if (env.RATE_LIMIT) {
       const ip = request.headers.get("CF-Connecting-IP") || "inconnue";
       rateKey = "rl:" + type + ":" + (await sha256(ip));
-      if (await env.RATE_LIMIT.get(rateKey)) {
-        return json({ ok: false, error: "Candidature déjà envoyée récemment." }, 429, cors);
+      const previous = await env.RATE_LIMIT.get(rateKey);
+      if (previous) {
+        // On rappelle au candidat le numéro de sa candidature précédente.
+        return json({ ok: false, error: "Candidature déjà envoyée récemment.", id: ID_FORMAT.test(previous) ? previous : undefined }, 429, cors);
       }
     }
 
     const roleId = String(env[schema.ping] || "");
     const ping = /^\d{5,25}$/.test(roleId) ? roleId : null;
 
+    const id = newId(schema.prefix);
+
     const payload = {
       username: "Candidatures – Santos Legacy RP",
-      content: ping ? `<@&${ping}> Nouvelle candidature reçue.` : undefined,
+      // Le numéro est aussi dans le texte du message pour pouvoir le retrouver avec la recherche Discord.
+      content: `${ping ? `<@&${ping}> ` : ""}Nouvelle candidature **N° ${id}**`,
       // Aucune mention possible depuis le texte du candidat (@everyone, @rôle…).
       allowed_mentions: ping ? { parse: [], roles: [ping] } : { parse: [] },
       embeds: [{
-        title: schema.title,
+        title: `${schema.title} · N° ${id}`,
         color: schema.color,
         fields: checked.fields,
-        footer: { text: "Envoyée depuis le site" },
+        footer: { text: `N° ${id} · Envoyée depuis le site` },
         timestamp: new Date().toISOString(),
       }],
     };
@@ -162,8 +179,8 @@ export default {
 
     if (rateKey) {
       const ttl = Math.max(60, Number(env.COOLDOWN_SECONDS) || 1800);
-      await env.RATE_LIMIT.put(rateKey, "1", { expirationTtl: ttl });
+      await env.RATE_LIMIT.put(rateKey, id, { expirationTtl: ttl });
     }
-    return json({ ok: true }, 200, cors);
+    return json({ ok: true, id }, 200, cors);
   },
 };

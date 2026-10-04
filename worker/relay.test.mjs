@@ -38,12 +38,16 @@ test("candidature WL valide : envoyée dans Discord sous forme d'embed", async (
   try {
     const res = await post(wlFields());
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { ok: true });
+    const data = await res.json();
+    assert.equal(data.ok, true);
+    assert.match(data.id, /^WL-[A-HJ-NP-Z2-9]{6}$/);
     assert.equal(res.headers.get("access-control-allow-origin"), ORIGIN);
     assert.equal(d.calls.length, 1);
     assert.equal(d.calls[0].url, HOOK);
     const embed = d.calls[0].body.embeds[0];
-    assert.equal(embed.title, "Candidature Whitelist");
+    assert.equal(embed.title, `Candidature Whitelist · N° ${data.id}`);
+    assert.ok(d.calls[0].body.content.includes(`**N° ${data.id}**`), "le numéro est dans le texte du message (recherche Discord)");
+    assert.ok(embed.footer.text.includes(data.id));
     assert.ok(embed.fields.some((f) => f.name === "Personnage" && f.value === "Tony Santos"));
     assert.deepEqual(d.calls[0].body.allowed_mentions, { parse: [] });
   } finally { d.restore(); }
@@ -57,7 +61,9 @@ test("candidature Staff valide", async () => {
       disponibilites: "Soirs et week-ends", motivation: "Je veux aider la communauté à rester agréable, sérieuse et accueillante.", reglement: "on",
     });
     assert.equal(res.status, 200);
-    assert.equal(d.calls[0].body.embeds[0].title, "Candidature Staff");
+    const data = await res.json();
+    assert.match(data.id, /^STAFF-[A-HJ-NP-Z2-9]{6}$/);
+    assert.equal(d.calls[0].body.embeds[0].title, `Candidature Staff · N° ${data.id}`);
   } finally { d.restore(); }
 });
 
@@ -112,7 +118,7 @@ test("les mentions @everyone du candidat ne notifient personne", async () => {
   try {
     await post({ ...wlFields(), motivation: "@everyone @here <@&1234567890>" });
     assert.deepEqual(d.calls[0].body.allowed_mentions, { parse: [] });
-    assert.equal(d.calls[0].body.content, undefined);
+    assert.doesNotMatch(d.calls[0].body.content, /@|<@/, "aucune mention dans le texte du message");
   } finally { d.restore(); }
 });
 
@@ -138,8 +144,10 @@ test("délai anti-spam : la 2e candidature de la même personne reçoit 429", as
   const d = fakeDiscord();
   const env = { ...baseEnv(), RATE_LIMIT: fakeKV() };
   try {
-    assert.equal((await post(wlFields(), { env, ip: "1.2.3.4" })).status, 200);
-    assert.equal((await post(wlFields(), { env, ip: "1.2.3.4" })).status, 429);
+    const first = await (await post(wlFields(), { env, ip: "1.2.3.4" })).json();
+    const again = await post(wlFields(), { env, ip: "1.2.3.4" });
+    assert.equal(again.status, 429);
+    assert.equal((await again.json()).id, first.id, "le refus rappelle le numéro de la candidature déjà envoyée");
     assert.equal((await post(wlFields(), { env, ip: "5.6.7.8" })).status, 200, "une autre personne n'est pas bloquée");
     assert.equal(d.calls.length, 2);
     assert.equal(env.RATE_LIMIT.size(), 2);
@@ -171,4 +179,25 @@ test("webhook absent ou invalide : 500 sans appel réseau", async () => {
     assert.equal((await post(wlFields(), { env: { ...baseEnv(), WEBHOOK_WHITELIST: "https://pirate.example/hook" } })).status, 500);
     assert.equal(d.calls.length, 0);
   } finally { d.restore(); }
+});
+
+test("numéros de candidature : uniques, bien formés, jamais de caractères ambigus", async () => {
+  const d = fakeDiscord();
+  try {
+    const ids = new Set();
+    for (let i = 0; i < 200; i++) {
+      const res = await post(wlFields());
+      const { id } = await res.json();
+      assert.match(id, /^WL-[A-HJ-NP-Z2-9]{6}$/);
+      ids.add(id);
+    }
+    assert.equal(ids.size, 200, "aucun doublon sur 200 tirages");
+    assert.ok(![...ids].some((id) => /[IO01]/.test(id.slice(3))), "pas de I, O, 0 ou 1");
+  } finally { d.restore(); }
+});
+
+test("candidature refusée : aucun numéro attribué", async () => {
+  const res = await post({ ...wlFields(), age: "12" });
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).id, undefined);
 });
