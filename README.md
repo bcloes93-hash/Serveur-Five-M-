@@ -76,4 +76,4 @@ python3 -m http.server 8000
 
 1. Le code à publier doit être sur la branche `main`.
 2. Sur GitHub : **Settings → Pages → Build and deployment → Deploy from a branch**, choisir `main` et le dossier `/ (root)`.
-3. Le site est publié à l'adresse `https://<utilisateur>.github.io/<dépôt>/`. Un nom de domaine personnalisé peut être ajouté dans la même page.
+3. Le site est publié à l'adresse `https://<utilisateur>.github.io/<dépôt>/`. Un nom de domaine personnalisé peut être ajouté dans la même page. Ce site utilise **santoslegacyrp.com** (fichier `CNAME` à la racine du dépôt : ne pas le supprimer). Les réglages `PANEL_URL` et `ALLOWED_ORIGIN` des relais (Cloudflare) doivent contenir cette adresse.

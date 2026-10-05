@@ -209,8 +209,8 @@ Dans le Worker → **Settings** :
 | `ROLES_FOUNDER` | Texte (facultatif) | l'ID du rôle Fondateur |
 | `ROLES_SUPPORT` | Texte (facultatif) | l'ID du rôle Support (lecture seule des références, sans le journal des sanctions) |
 | `SESSION_SECRET` | **Secret** | une longue chaîne aléatoire, 48 caractères ou plus (générateur de mot de passe de votre navigateur) |
-| `PANEL_URL` | Texte | `https://bcloes93-hash.github.io/Serveur-Five-M-/staff.html` |
-| `ALLOWED_ORIGIN` | Texte | `https://bcloes93-hash.github.io` (sans `/` final) |
+| `PANEL_URL` | Texte | `https://bcloes93-hash.github.io/Serveur-Five-M-/staff.html` (avec le nom de domaine : `https://santoslegacyrp.com/staff.html`) |
+| `ALLOWED_ORIGIN` | Texte | `https://bcloes93-hash.github.io` (sans `/` final) ; avec le nom de domaine, les deux séparées par une virgule : `https://bcloes93-hash.github.io,https://santoslegacyrp.com` |
 | `SESSION_HOURS` | Texte (facultatif) | durée d'une session, 8 par défaut |
 
 Vérification : ouvrez `https://santos-legacy-staff.b-cloes93.workers.dev/login`. S'il manque un réglage, la page
