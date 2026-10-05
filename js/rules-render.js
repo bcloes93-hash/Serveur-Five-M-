@@ -234,5 +234,5 @@
     return [it.title].concat(it.refs, it.steps.map(function (st) { return st.label + " " + st.value; }), it.notes.map(function (l) { return plain(l); })).join(" ");
   }
 
-  root.SLRules = { LABELS: LABELS, parse: parse, render: render, inline: inline, plain: plain, fold: fold, typo: typo, parseInfractions: parseInfractions, renderInfractions: renderInfractions, infractionText: infractionText, severity: severity };
+  root.SLRules = { LABELS: LABELS, parse: parse, render: render, inline: inline, plain: plain, fold: fold, typo: typo, parseInfractions: parseInfractions, renderInfractions: renderInfractions, infractionText: infractionText, severity: severity, refLine: refLine };
 })(window);

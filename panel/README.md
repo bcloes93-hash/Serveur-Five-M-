@@ -19,7 +19,7 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   - *Support* (facultatif) : lecture seule du barème, des commandes et de l'organigramme. **Pas d'accès** au journal
     des sanctions, qui contient des données sur des joueurs.
   - *Modération* : en plus, consulte le journal des sanctions et y ajoute des sanctions.
-  - *Administration* : en plus, supprime des sanctions, modifie le barème, les commandes et l'organigramme, et consulte
+  - *Administration* : en plus, supprime des sanctions, modifie les commandes et l'organigramme, et consulte
     le journal d'activité.
   - *Manager* (facultatif) et *Fondateur* (facultatif) : mêmes droits que l'administration, avec une **visibilité
     plus large des commandes** (voir ci-dessous).
@@ -29,10 +29,12 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   de son niveau et des niveaux inférieurs : le serveur ne les envoie même pas aux autres (ce n'est pas un simple masquage
   à l'écran). Un administrateur ne peut ni créer, ni modifier, ni supprimer une commande réservée à un niveau supérieur
   au sien, et le journal d'activité masque leur nom.
-- **Barème des sanctions** (onglet *Sanctions → Barème*) : pour chaque infraction (RDM, troll, insultes…), les paliers à
-  appliquer selon les récidives, par exemple avertissement, expulsion, ban 3 jours, ban définitif. Il se lit d'un coup
-  d'œil, se recherche, et un bouton « Noter dans le journal » reprend l'infraction dans le journal. Visible par tout le
-  staff ; l'administration l'édite depuis le panel.
+- **Barème des sanctions** (onglet *Sanctions → Barème*) : **le même barème que celui du site** (*Règlement → Barème*),
+  lu en direct : il n'y a plus de liste à part à tenir à jour. Pour chaque infraction (par catégorie), les renvois vers
+  les règles (numéros cliquables), la progression des sanctions (1re fois, 2e fois, récidive…, pastille de couleur selon
+  la gravité) et les remarques. Il se lit d'un coup d'œil, se recherche (nom, mot-clé, numéro de règle) et un bouton
+  « Noter dans le journal » reprend l'infraction dans le journal. Visible par tout le staff. Pour le modifier : *Règlement
+  → Barème* (managers et fondateur) — un bouton « Modifier le barème » y mène.
 - **Règlement** (onglet *Règlement*, **manager et fondateur**) : les chapitres et les règles de la page publique
   [Règlement](../reglement.html) se gèrent ici, sans toucher au code. Le site lit la version publiée par une route
   publique en lecture seule (`/api/public/rules`, qui ne renvoie que ce qui est publié, sans identifiant ni nom d'auteur).
@@ -151,10 +153,8 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 3. (Facultatif) Pour pré-remplir l'organigramme avec l'équipe actuelle, collez ensuite le contenu de
    [`seed.sql`](./seed.sql) et **Execute**. **À faire une seule fois** : le refaire créerait des doublons.
    Sans cette étape, l'organigramme démarre vide et l'administration le remplit depuis le panel.
-4. (Facultatif) Pour partir d'un barème de sanctions déjà rédigé, collez le contenu de
-   [`seed-bareme.sql`](./seed-bareme.sql) et **Execute**, une seule fois. ⚠️ C'est une **proposition** (13 infractions
-   tirées du règlement public, avec des paliers et durées courants) : l'équipe doit la relire et l'adapter avant de
-   l'appliquer. Sans cette étape, le barème démarre vide.
+4. (Ancien, inutile) [`seed-bareme.sql`](./seed-bareme.sql) pré-remplissait l'ancienne liste privée du barème
+   (table `penalties`). Le panel ne la lit plus : le barème des sanctions est celui du Règlement (voir plus bas).
 
 ## Étape 3 bis – Créer le relais
 1. **Compute** → **Workers & Pages** → **Create** → **Create Worker** → nom : `santos-legacy-staff` → **Deploy**.
@@ -211,11 +211,11 @@ staffApi: "https://santos-legacy-staff.b-cloes93.workers.dev",
 
 Le lien « Espace staff » apparaît alors dans le pied de page du site, et `staff.html` affiche la connexion.
 
-## Remplir le barème
-Compte **Administration** → *Sanctions → Barème* → « Ajouter une infraction au barème » : nom, catégorie, puis jusqu'à
-5 **paliers** dans l'ordre (le 1ᵉʳ pour la première infraction, le 2ᵉ pour la récidive…). Chaque palier est un
-avertissement, une expulsion, un ban temporaire (durée obligatoire), un ban définitif ou « Autre » (texte libre).
-Une infraction avec un seul palier s'affiche « Immédiat » (ex. triche → ban définitif).
+## Le barème des sanctions
+Il n'y en a **qu'un** : celui de *Règlement → Barème* (managers et fondateur). Le panel (*Sanctions → Barème*) et la page
+publique le lisent à la même source, ils sont donc toujours identiques. Pour le remplir ou le modifier : voir « Barème
+des sanctions (indicatif) » plus haut. L'ancienne liste privée (table `penalties` et routes `/api/penalties`) n'est plus
+utilisée par le panel ; elle reste en base sans effet et peut être ignorée.
 
 ## Remplir les commandes
 Une fois connecté avec un compte **Administration** : onglet **Commandes** → formulaire « Ajouter une commande »
