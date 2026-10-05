@@ -99,6 +99,9 @@ a:hover { color: #7be6ff; }
 .nav__menu a:not(.btn):hover,
 .nav__menu a[aria-current="page"] { color: var(--text); background: var(--surface-hover); }
 
+/* « Espace staff » : à droite du bouton Discord, en discret (visible quand le panel est configuré) */
+.nav__menu a.nav__staff { margin-left: 4px; border: 1px solid var(--border); border-radius: 999px; padding: 8px 14px; font-size: 0.95rem; }
+.nav__menu a.nav__staff[hidden] { display: none; }
 .nav__toggle {
   display: none; width: 44px; height: 44px; border: 1px solid var(--border);
   background: var(--surface); border-radius: 12px; cursor: pointer; color: var(--text);
@@ -122,7 +125,7 @@ a:hover { color: #7be6ff; }
   .nav__brand img { width: 36px; height: 36px; }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1260px) {   /* menu en liste déroulante dès que les 8 liens ne tiennent plus sur une ligne */
   .nav__toggle { display: inline-flex; }
   .nav__menu {
     position: absolute; left: 0; right: 0; top: 100%;
