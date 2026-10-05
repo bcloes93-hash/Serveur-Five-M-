@@ -33,7 +33,18 @@
     return n;
   }
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
-  function show(name) { Object.keys(views).forEach(function (k) { views[k].hidden = k !== name; }); }
+  function show(name) { Object.keys(views).forEach(function (k) { views[k].hidden = k !== name; }); placeHead(); }
+
+  /* Titre de la page : en haut de la page avant la connexion ; une fois connecté (écran large), il passe à droite du menu,
+     qui peut ainsi commencer tout en haut de la page. Le même titre est déplacé, jamais dupliqué. */
+  var pageHead = $(".page-head"), headHome = pageHead && pageHead.parentNode, wide = window.matchMedia ? window.matchMedia("(min-width: 901px)") : null;
+  function placeHead() {
+    var main = $(".staff__main");
+    if (!pageHead || !main) return;
+    if (!views.app.hidden && (!wide || wide.matches)) { if (pageHead.parentNode !== main) main.insertBefore(pageHead, main.firstChild); }
+    else if (pageHead.parentNode !== headHome) headHome.insertBefore(pageHead, headHome.querySelector("section.staff"));
+  }
+  if (wide) { if (wide.addEventListener) wide.addEventListener("change", placeHead); else if (wide.addListener) wide.addListener(placeHead); }
   function fmtDate(iso) {
     var d = new Date(iso);
     return isNaN(d) ? "" : d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });

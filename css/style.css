@@ -976,7 +976,7 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .staff__layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; align-items: stretch; }   /* le menu occupe toute la hauteur du contenu */
 @media (min-width: 901px) { .staff__layout { min-height: calc(100vh - 84px); } }   /* au moins la hauteur de l'écran, même pour une section courte */
 .staff__main { min-width: 0; display: flex; flex-direction: column; }
-.staff__main > section:not([hidden]) { flex: 1 0 auto; }   /* une section courte (Activité, Accueil) descend jusqu'au bas du menu */
+.staff__main > section:not([hidden]):not(.page-head) { flex: 1 0 auto; }   /* une section courte (Activité, Accueil) descend jusqu'au bas du menu */
 /* (le décalage sous le menu du site est déjà donné par scroll-padding-top de la page) */
 .staff__side {
   padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
@@ -995,6 +995,11 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
   .staff__side .tabs { flex-direction: row; flex-wrap: wrap; }
   .staff__side .tabs__tab { width: auto; flex: 1 1 auto; text-align: center; padding: 11px 12px; }
 }
+/* Titre de la page une fois connecté : plus petit, à droite du menu */
+.staff__main > .page-head { padding: 2px 4px 22px; }
+.staff__main > .page-head .container { max-width: none; padding-inline: 0; }
+.staff__main > .page-head .section__title { font-size: clamp(1.7rem, 2.4vw, 2.3rem); margin: 0 0 4px; }
+.staff__main > .page-head .section__lead { margin: 10px 0 0; font-size: 1rem; max-width: none; }
 .tabs__tab:disabled { opacity: 0.45; cursor: not-allowed; }
 .tabs__tab:disabled:hover { background: transparent; color: var(--muted); }
 .tabs__tab small { font-weight: 500; opacity: 0.8; }
