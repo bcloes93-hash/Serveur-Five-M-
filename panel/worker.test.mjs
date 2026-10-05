@@ -1265,26 +1265,36 @@ test("règlement : le barème a aussi des sections libres (facteurs, récidive�
     { title: "Facteurs atténuants", body: "* erreur involontaire", kind: "down" },
     { title: "Récidive", body: "Texte." },
     { title: "Principe fondamental", body: "Un principe.", kind: "key" },
+    { title: "Comportement", body: "Compte multiple\n🔗 Règle 1.13 — Comptes et accès au serveur\n1re fois — Avertissement\n2e fois — Ban 7 jours", kind: "infractions" },
   ];
   assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { sections })).status, 200);
   const staff = (await getRules(env, t.manager)).bareme.sections;
-  assert.deepEqual(staff.map((s) => [s.title, s.kind]), [["Facteurs aggravants", "up"], ["Facteurs atténuants", "down"], ["Récidive", "info"], ["Principe fondamental", "key"]]);
+  assert.deepEqual(staff.map((s) => [s.title, s.kind]), [["Facteurs aggravants", "up"], ["Facteurs atténuants", "down"], ["Récidive", "info"], ["Principe fondamental", "key"], ["Comportement", "infractions"]]);
   assert.equal(staff[0].body, "Une sanction peut être augmentée :\n* récidive\n* mensonge");
   assert.deepEqual((await getPublic(env)).data.bareme.sections, staff, "servies telles quelles au site, dans l'ordre");
   // un envoi sans « sections » ne les efface pas ; un envoi vide les retire
   assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { intro: "Autre intro." })).status, 200);
-  assert.equal((await getRules(env, t.manager)).bareme.sections.length, 4);
+  assert.equal((await getRules(env, t.manager)).bareme.sections.length, 5);
   assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { sections: [] })).status, 200);
   assert.deepEqual((await getRules(env, t.manager)).bareme.sections, []);
   // validations
-  for (const [body, label] of [[{ sections: "non" }, "pas une liste"], [{ sections: [{ title: "  ", body: "x" }] }, "titre vide"], [{ sections: [{ title: "A", kind: "rouge" }] }, "type inconnu"], [{ sections: Array.from({ length: 13 }, (_, i) => ({ title: "S" + i })) }, "trop de sections"], [{ sections: [null] }, "élément invalide"]]) {
+  for (const [body, label] of [[{ sections: "non" }, "pas une liste"], [{ sections: [{ title: "  ", body: "x" }] }, "titre vide"], [{ sections: [{ title: "A", kind: "rouge" }] }, "type inconnu"], [{ sections: Array.from({ length: 25 }, (_, i) => ({ title: "S" + i })) }, "trop de sections"], [{ sections: [null] }, "élément invalide"]]) {
     assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", body)).status, 400, label);
   }
   assert.deepEqual((await getRules(env, t.manager)).bareme.sections, [], "un refus ne change rien");
-  const long = await send(env, "/api/rules-bareme", t.manager, "PUT", { sections: [{ title: "T".repeat(300), body: "b".repeat(5000) }], intro: "i".repeat(3000) });
+  const long = await send(env, "/api/rules-bareme", t.manager, "PUT", { sections: [{ title: "T".repeat(300), body: "b".repeat(15000) }], intro: "i".repeat(4000) });
   assert.equal(long.status, 200);
   const b = (await getRules(env, t.manager)).bareme;
-  assert.equal(b.sections[0].title.length, 100); assert.equal(b.sections[0].body.length, 3000); assert.equal(b.intro.length, 1500);
+  assert.equal(b.sections[0].title.length, 100); assert.equal(b.sections[0].body.length, 12000); assert.equal(b.intro.length, 3000);
+  // un barème complet (24 sections de 12 000 caractères) passe ; un envoi démesuré est refusé avant lecture
+  const full = await send(env, "/api/rules-bareme", t.manager, "PUT", { intro: "x", sections: Array.from({ length: 24 }, (_, i) => ({ title: "S" + i, body: "é".repeat(2000), kind: "infractions" })) });
+  assert.equal(full.status, 200, "24 sections");
+  const hugeB = JSON.stringify({ sections: [{ title: "x", body: "y".repeat(130000) }] });
+  const tooBigB = await panel.fetch(new Request(`${W}/api/rules-bareme`, { method: "PUT", headers: { authorization: `Bearer ${t.manager}`, origin: SITE, "content-type": "application/json", "content-length": String(hugeB.length) }, body: hugeB }), env);
+  assert.equal(tooBigB.status, 413, "envoi démesuré");
+  // le panel y lit ce que le relais sait faire (un relais plus ancien ne l'indique pas : le panel le signale)
+  const lim = (await call(env, "/api/rules", { token: t.manager }).then((r) => r.json())).limits;
+  assert.ok(lim.bareme_kinds.includes("infractions") && lim.bareme_sections === 24 && lim.bareme_body === 12000, JSON.stringify(lim));
   // droits : comme le reste du règlement
   assert.equal((await send(env, "/api/rules-bareme", t.admin, "PUT", { sections: [] })).status, 403);
   // texte hostile : jamais interprété

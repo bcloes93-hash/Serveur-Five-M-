@@ -915,7 +915,7 @@
   /* ---------- Règlement : chapitres, règles, barème indicatif ---------- */
   // Les numéros (5.12) ne sont pas saisis : ils suivent l'ordre choisi ici et ne comptent que ce qui est publié (comme sur le site).
   var RENDER = window.SLRules;
-  var rl = { loaded: false, initialized: false, missing: false, chapters: [], bareme: null, updated: "", sel: null, filter: "", drag: null, editRule: null, editChapter: null };
+  var rl = { loaded: false, initialized: false, missing: false, chapters: [], bareme: null, limits: null, updated: "", sel: null, filter: "", drag: null, editRule: null, editChapter: null };
   var rlStatus = $("#rl-status"), rlHint = $("#rl-hint");
   var rDlg = $("#rl-rule-dialog"), rForm = $("#rl-rule-form"), rBody = $("#rl-r-body"), rStatus = $("#rl-r-status");
   var chDlg = $("#rl-chapter-dialog"), chForm = $("#rl-chapter-form"), chStatus = $("#rl-c-status");
@@ -952,7 +952,7 @@
   function loadRules() {
     return api("GET", "/api/rules").then(function (d) {
       rl.loaded = true; rl.missing = !!d.missing; rl.initialized = !!d.initialized;
-      rl.chapters = d.chapters || []; rl.bareme = d.bareme || null; rl.updated = d.updated || "";
+      rl.chapters = d.chapters || []; rl.bareme = d.bareme || null; rl.limits = d.limits || null; rl.updated = d.updated || "";
       if (!chapterById(rl.sel)) rl.sel = rl.chapters.length ? rl.chapters[0].id : null;
       renderRules(); fillBareme();
       refreshMissing();
@@ -1409,14 +1409,45 @@
   $("#rl-import-btn").addEventListener("click", function () { importOriginal(false); });
   $("#rl-reset").addEventListener("click", function () { importOriginal(true); });
 
-  /* --- barème indicatif (quatre niveaux) --- */
+  /* --- barème indicatif : introduction, catégories d'infractions et sections --- */
   var bForm = $("#rl-bareme-form"), bStatus = $("#rb-status");
-  var KINDS = [["info", "Standard"], ["up", "Aggravant (rouge)"], ["down", "Atténuant (vert)"], ["key", "Principe (encadré)"]];
+  var KINDS = [["infractions", "Catégorie d'infractions"], ["info", "Texte standard"], ["key", "Principe (encadré)"], ["up", "Aggravant (rouge)"], ["down", "Atténuant (vert)"]];
+  var MAX_SECTIONS = 24, MAX_SECTION_BODY = 12000;
   var secBox = $("#rb-sections");
   function syncSecButtons() {
     var rows = $$(".rl__sec", secBox);
     rows.forEach(function (r, i) { $(".rl__secup", r).disabled = i === 0; $(".rl__secdown", r).disabled = i === rows.length - 1; });
-    $("#rb-add-section").disabled = rows.length >= 12;
+    $("#rb-add-section").disabled = rows.length >= MAX_SECTIONS;
+  }
+  // Numéros de règles qui existent (publiées), comme sur le site : sert aux liens et aux alertes de l'aperçu
+  function ruleNumbers() {
+    var n = numbering(), set = {};
+    Object.keys(n.rule).forEach(function (id) { if (/^\d+\.\d+$/.test(n.rule[id])) set[n.rule[id]] = true; });
+    return set;
+  }
+  // Compte les infractions reconnues, signale les renvois sans règle, et (si l'aperçu est ouvert) l'affiche
+  function secPreview(box) {
+    var det = $(".rl__secprev", box), info = $(".rl__secinfo", box);
+    var kind = $(".rl__seckind", box).value, text = $(".rl__secbody", box).value, known = ruleNumbers();
+    var warn = false;
+    info.textContent = "";
+    if (kind === "infractions") {
+      var parsed = RENDER.parseInfractions(text), broken = [];
+      parsed.items.forEach(function (it) {
+        it.refs.forEach(function (r) {
+          (r.split(/\s[—–]\s/)[0].match(/\d+\.\d+/g) || []).forEach(function (num) { if (!known[num] && broken.indexOf(num) === -1) broken.push(num); });
+        });
+      });
+      var n = parsed.items.length;
+      info.textContent = n + (n > 1 ? " infractions reconnues" : " infraction reconnue") + (broken.length ? " · " + broken.length + (broken.length > 1 ? " renvois" : " renvoi") + " vers une règle introuvable : " + broken.join(", ") : "");
+      warn = broken.length > 0;
+    }
+    info.classList.toggle("rl__secinfo--warn", warn);
+    if (!det.open) return;
+    var out = $(".rl__secout", box); clear(out);
+    if (!text.trim()) { out.appendChild(el("p", "rl__prevempty", "L'aperçu apparaît ici dès que vous écrivez.")); return; }
+    var opts = { chapterHref: function () { return "#"; }, ruleHref: function (num) { return known[num] ? "#" : null; } };
+    if (kind === "infractions") RENDER.renderInfractions(text, out, opts); else RENDER.render(text, out, opts);
   }
   function secRow(sec) {
     var box = el("div", "rl__sec");
@@ -1430,14 +1461,28 @@
     head.appendChild(title); head.appendChild(kind);
     box.appendChild(head);
     var body = document.createElement("textarea");
-    body.className = "rl__secbody"; body.rows = 7; body.maxLength = 3000; body.value = sec.body || ""; body.setAttribute("aria-label", "Texte de la section");
+    body.className = "rl__secbody"; body.maxLength = MAX_SECTION_BODY; body.value = sec.body || ""; body.setAttribute("aria-label", "Texte de la section");
+    var rows = function () { body.rows = kind.value === "infractions" ? 14 : 7; };
+    rows();
     box.appendChild(body);
+    box.appendChild(el("p", "field__hint rl__secinfo"));
+    var det = el("details", "rl__secprev");
+    det.appendChild(el("summary", null, "Aperçu, tel qu'il s'affichera sur le site"));
+    var prev = el("div", "rl__preview"), out = el("div", "rule__body rl__secout");
+    prev.appendChild(out); det.appendChild(prev);
+    prev.addEventListener("click", function (e) { if (e.target.closest("a")) e.preventDefault(); });
+    box.appendChild(det);
+    var timer = null;
+    body.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(function () { secPreview(box); }, 150); });
+    kind.addEventListener("change", function () { rows(); secPreview(box); });
+    det.addEventListener("toggle", function () { secPreview(box); });
     var acts = el("div", "rl__secacts");
     var up = actBtn("↑ Monter", function () { if (box.previousElementSibling) secBox.insertBefore(box, box.previousElementSibling); syncSecButtons(); }, "rl__secup");
     var down = actBtn("↓ Descendre", function () { if (box.nextElementSibling) secBox.insertBefore(box.nextElementSibling, box); syncSecButtons(); }, "rl__secdown");
     var del = actBtn("Supprimer la section", function () { box.parentNode.removeChild(box); syncSecButtons(); }, "btn--danger");
     acts.appendChild(up); acts.appendChild(down); acts.appendChild(del);
     box.appendChild(acts);
+    secPreview(box);
     return box;
   }
   function renderSections(list) {
@@ -1449,52 +1494,69 @@
     return $$(".rl__sec", secBox).map(function (r) { return { title: $(".rl__sectitle", r).value, kind: $(".rl__seckind", r).value, body: $(".rl__secbody", r).value }; });
   }
   $("#rb-add-section").addEventListener("click", function () {
-    var row = secRow({ title: "", kind: "info", body: "" });
+    var row = secRow({ title: "", kind: "infractions", body: "" });
     secBox.appendChild(row); syncSecButtons();
     $(".rl__sectitle", row).focus();
   });
+  // Un relais pas à jour ne connaît ni les catégories d'infractions ni les nouvelles tailles : il les tronquerait sans rien signaler
+  function baremeStale() {
+    return !rl.bareme || !Array.isArray(rl.bareme.sections) || !rl.limits || (rl.limits.bareme_kinds || []).indexOf("infractions") < 0;
+  }
   function fillBareme() {
     if (!rl.bareme) return;
-    // Un relais pas à jour ne connaît pas les sections : on le dit et on bloque l'enregistrement (il les ignorerait sans rien signaler)
-    var stale = !Array.isArray(rl.bareme.sections);
+    var stale = baremeStale();
     $("#rb-warn").hidden = !stale;
-    $("#rb-submit").disabled = stale; $("#rb-origin-btn").disabled = stale;
+    $("#rb-submit").disabled = stale; $("#rb-origin-btn").disabled = stale; $("#rb-reset").disabled = stale;
     bForm.elements.intro.value = rl.bareme.intro || "";
-    (rl.bareme.levels || []).forEach(function (l) { if (bForm.elements[l.key]) bForm.elements[l.key].value = l.body || ""; });
     renderSections(rl.bareme.sections);
   }
-  // Charge d'un coup un barème complet (le barème d'origine) : même format que le formulaire
+  // Charge d'un coup un barème complet (le barème d'origine) : même format que le formulaire. Les anciens niveaux sont vidés.
   function baremePayload(b) {
-    var levels = {};
-    (b.levels || []).forEach(function (l) { levels[l.key] = l.body || ""; });
+    var levels = { mineure: "", moderee: "", grave: "", critique: "" };
+    (b.levels || []).forEach(function (l) { if (l.key in levels) levels[l.key] = l.body || ""; });
     return { intro: b.intro || "", levels: levels, sections: (b.sections || []).map(function (x) { return { title: x.title, kind: x.kind || "info", body: x.body || "" }; }) };
   }
-  function baremeEmpty() {
-    return !rl.bareme || (!(rl.bareme.sections || []).length && (rl.bareme.levels || []).every(function (l) { return !l.body; }));
+  function hasInfractions(b) { return !!b && (b.sections || []).some(function (x) { return x.kind === "infractions"; }); }
+  function baremeIsEmpty() {
+    return !rl.bareme || (!(rl.bareme.sections || []).length && !(rl.bareme.levels || []).some(function (l) { return l.body; }));
   }
   function refreshBaremeOrigin() {
-    var box = $("#rb-origin");
-    box.hidden = true;
-    if (!origin || !origin.bareme || !baremeEmpty() || !Array.isArray(rl.bareme.sections)) return;
-    var has = (origin.bareme.levels || []).some(function (l) { return l.body; }) || (origin.bareme.sections || []).length;
-    if (!has) return;
-    $("#rb-origin-text").textContent = "Votre barème est vide, alors que la version d'origine contient un barème rédigé : 4 niveaux (Mineure, Modérée, Grave, Critique) et " + (origin.bareme.sections || []).length + " sections (facteurs aggravants et atténuants, récidive…). Vous pouvez l'ajouter d'un clic, puis le modifier.";
+    var box = $("#rb-origin"), reset = $("#rb-reset");
+    box.hidden = true; reset.hidden = true;
+    if (!origin || !origin.bareme || !rl.bareme || baremeStale() || !hasInfractions(origin.bareme)) return;
+    reset.hidden = false;   // le barème d'origine reste toujours rétablissable
+    if (hasInfractions(rl.bareme)) return;
+    var cats = origin.bareme.sections.filter(function (x) { return x.kind === "infractions"; });
+    var n = cats.reduce(function (t, x) { return t + RENDER.parseInfractions(x.body).items.length; }, 0);
+    var what = cats.length + " catégories et " + n + " infractions, avec la progression des sanctions (1re, 2e, 3e fois…) et des renvois cliquables vers les règles";
+    var empty = baremeIsEmpty();
+    $("#rb-origin-text").textContent = empty
+      ? "Votre barème est vide, alors que la version d'origine contient un barème rédigé : " + what + ". Vous pouvez l'ajouter d'un clic, puis le modifier."
+      : "Une nouvelle version du barème est disponible : " + what + ". L'appliquer remplace votre barème actuel (l'introduction, les 4 niveaux et les sections de l'ancienne version) ; vous pourrez ensuite le modifier.";
+    $("#rb-origin-btn").textContent = empty ? "Ajouter le barème d'origine" : "Appliquer le nouveau barème";
     box.hidden = false;
   }
-  $("#rb-origin-btn").addEventListener("click", function () {
-    if (!window.confirm("Ajouter le barème d'origine ? Votre barème est vide : rien n'est remplacé.")) return;
-    var btn = $("#rb-origin-btn"); btn.disabled = true;
+  function applyOrigin(btn, confirmText, doneText) {
+    if (!origin || !origin.bareme || !window.confirm(confirmText)) return;
+    btn.disabled = true;
     bStatus.className = "form__status"; bStatus.textContent = "";
     api("PUT", "/api/rules-bareme", baremePayload(origin.bareme)).then(function () {
-      return loadRules().then(function () { bStatus.className = "form__status form__status--ok"; bStatus.textContent = "Barème d'origine ajouté."; });
-    }, function (err) { if (err.status !== 401) bStatus.textContent = err.message || "Ajout impossible."; }).then(function () { btn.disabled = false; });
+      return loadRules().then(function () { bStatus.className = "form__status form__status--ok"; bStatus.textContent = doneText; });
+    }, function (err) { if (err.status !== 401) bStatus.textContent = err.message || "Opération impossible."; }).then(function () { btn.disabled = false; });
+  }
+  $("#rb-origin-btn").addEventListener("click", function () {
+    applyOrigin(this, baremeIsEmpty() ? "Ajouter le barème d'origine ? Votre barème est vide : rien n'est remplacé." : "Appliquer le nouveau barème ? Il remplace votre barème actuel (introduction, 4 niveaux et sections).", baremeIsEmpty() ? "Barème d'origine ajouté." : "Nouveau barème appliqué.");
+  });
+  $("#rb-reset").addEventListener("click", function () {
+    applyOrigin(this, "Rétablir le barème d'origine ? Tout votre barème actuel (introduction, catégories et sections) sera remplacé par la version d'origine : vos modifications du barème seront perdues.", "Barème d'origine rétabli.");
   });
   bForm.addEventListener("submit", function (e) {
     e.preventDefault();
     bStatus.className = "form__status"; bStatus.textContent = "";
     if (!bForm.reportValidity()) return;
     var f = bForm.elements, btn = $("#rb-submit"); btn.disabled = true;
-    api("PUT", "/api/rules-bareme", { intro: f.intro.value, levels: { mineure: f.mineure.value, moderee: f.moderee.value, grave: f.grave.value, critique: f.critique.value }, sections: collectSections() }).then(function () {
+    // (les anciens niveaux ne sont pas envoyés : ils ne changent que lorsqu'on applique ou rétablit le barème d'origine)
+    api("PUT", "/api/rules-bareme", { intro: f.intro.value, sections: collectSections() }).then(function () {
       return loadRules().then(function () { bStatus.className = "form__status form__status--ok"; bStatus.textContent = "Barème enregistré."; });
     }, function (err) { if (err.status !== 401) bStatus.textContent = err.message || "Enregistrement impossible."; }).then(function () { btn.disabled = false; });
   });

@@ -6,6 +6,13 @@
  *   Interdit · Autorisé · Exemple · Sanctions possibles…  intertitre  ### Titre   encadré (tout ce qui suit y est inclus)
  *   **gras**      mise en valeur                ligne entière en **gras** = phrase mise en avant
  * Rien n'est jamais interprété comme du HTML : le texte est inséré avec createTextNode.
+ *
+ * Barème des sanctions : le texte d'une « catégorie d'infractions » décrit une infraction par bloc
+ * (blocs séparés par une ligne vide, ou reconnus à leurs renvois) :
+ *   Titre de l'infraction
+ *   🔗 Règle 1.13 — Titre de la règle      renvoi vers une règle (un par ligne, facultatif)
+ *   1re fois — Avertissement               étape de sanction : « libellé — sanction »
+ *   Une phrase, ou * une puce              remarque sous les étapes
  */
 (function (root) {
   "use strict";
@@ -124,5 +131,108 @@
     return (s.normalize ? s.normalize("NFD").replace(/[̀-ͯ]/g, "") : s).replace(/ /g, " ").replace(/[’‘]/g, "'");
   }
 
-  root.SLRules = { LABELS: LABELS, parse: parse, render: render, inline: inline, plain: plain, fold: fold, typo: typo };
+  /* ---------- Barème : catégories d'infractions ---------- */
+  var LINK = "\uD83D\uDD17";   // 🔗
+  var REF_RE = new RegExp("^(?:" + LINK + "\\s*)?Règles?\\s+\\d+\\.\\d+");
+  var STEP_RE = /^(.{1,45}?)\s+[—–]\s+(.+)$/;
+  function isRef(s) { return s.indexOf(LINK) === 0 || REF_RE.test(s); }
+  function isBullet(s) { return /^[*-] /.test(s); }
+
+  // Texte d'une catégorie -> { lead: [lignes], items: [{ title, refs: [texte], steps: [{ label, value }], notes: [lignes] }] }
+  function parseInfractions(text) {
+    var raw = String(text || "").split("\n").map(function (l) { return l.trim(); });
+    var lead = [], items = [], cur = null, blank = true;
+    function nextLine(i) { for (var k = i + 1; k < raw.length; k++) if (raw[k]) return raw[k]; return ""; }
+    function isStep(s) { return !isRef(s) && !isBullet(s) && STEP_RE.test(s); }
+    raw.forEach(function (s, i) {
+      if (!s) { blank = true; return; }
+      var ref = isRef(s), step = isStep(s), bullet = isBullet(s);
+      if (ref) {
+        if (!cur) { cur = { title: "", refs: [], steps: [], notes: [] }; items.push(cur); }
+        cur.refs.push(s.indexOf(LINK) === 0 ? s.slice(LINK.length).trim() : s);
+      } else if (step) {
+        if (!cur) { cur = { title: "", refs: [], steps: [], notes: [] }; items.push(cur); }
+        var m = STEP_RE.exec(s);
+        cur.steps.push({ label: m[1].trim(), value: m[2].trim() });
+      } else if (bullet) {
+        (cur ? cur.notes : lead).push(s);
+      } else {
+        var nxt = nextLine(i);
+        // Une ligne qui précède un renvoi (ou, après une ligne vide, une étape) ouvre une nouvelle infraction ; sinon c'est une remarque
+        var opens = isRef(nxt) || (blank && isStep(nxt));
+        if (opens) { cur = { title: s, refs: [], steps: [], notes: [] }; items.push(cur); }
+        else (cur ? cur.notes : lead).push(s);
+      }
+      blank = false;
+    });
+    return { lead: lead, items: items };
+  }
+
+  // Gravité (0 à 4) d'une sanction, pour la couleur de la pastille — simple repère visuel, déduit des mots employés
+  function severity(value) {
+    var t = fold(value);
+    if (/definitif|permanent/.test(t)) return 4;
+    if (/retrait (de la )?(whitelist|wl)|exclusion|reevaluation|prolongation|ban (7|14)|ban \d+ a (7|14)|14 jours|suspension de l'organisation/.test(t)) return 3;
+    if (/ban|suspension|retrait|restriction|sanctions? (du groupe|individuelle|organisation)/.test(t)) return 2;
+    if (/avertissement|warn|expulsion|rappel|restitution|annulation|suppression|sanction|surveillance/.test(t)) return 1;
+    return 0;
+  }
+
+  // « Règles 8.52 à 8.56 — Titre » : chaque numéro devient un lien si opts.ruleHref(numéro) donne une adresse (sinon, avec opts.ruleHref, il est signalé comme introuvable)
+  function refLine(parent, text, opts) {
+    var cut = /\s[—–]\s/.exec(text), head = cut ? text.slice(0, cut.index) : text, tail = cut ? text.slice(cut.index) : "";
+    var ruleHref = opts && opts.ruleHref;
+    head.split(/(\d+\.\d+)/).forEach(function (part) {
+      if (!part) return;
+      if (/^\d+\.\d+$/.test(part) && ruleHref) {
+        var href = ruleHref(part);
+        if (href) { var a = node("a", "inf__link", part); a.setAttribute("href", href); parent.appendChild(a); }
+        else { var b = node("span", "inf__link inf__link--broken", part); b.setAttribute("title", "Cette règle n'existe pas ou n'est pas publiée"); parent.appendChild(b); }
+      } else parent.appendChild(document.createTextNode(part));
+    });
+    if (tail) parent.appendChild(document.createTextNode(typo(tail)));
+    return parent;
+  }
+
+  // Cartes d'infractions : titre, renvois vers les règles, progression des sanctions, remarques. opts.idPrefix : identifiants « <préfixe>-1 », « <préfixe>-2 »…
+  function renderInfractions(text, into, opts) {
+    opts = opts || {};
+    var parsed = parseInfractions(text);
+    var target = into || document.createDocumentFragment();
+    if (parsed.lead.length) { var lead = node("div", "inf__lead"); render(parsed.lead.join("\n"), lead, opts); target.appendChild(lead); }
+    var grid = node("div", "infs");
+    parsed.items.forEach(function (it, i) {
+      var top = 0;
+      it.steps.forEach(function (st) { st.sev = severity(st.value); if (st.sev > top) top = st.sev; });
+      var card = node("article", "inf inf--s" + top);
+      if (opts.idPrefix) card.id = opts.idPrefix + "-" + (i + 1);
+      if (it.title) card.appendChild(node("h4", "inf__title", typo(it.title)));
+      if (it.refs.length) {
+        var refs = node("ul", "inf__refs");
+        it.refs.forEach(function (r) { refs.appendChild(refLine(node("li"), r, opts)); });
+        card.appendChild(refs);
+      }
+      if (it.steps.length) {
+        var steps = node("ol", "inf__steps");
+        it.steps.forEach(function (st) {
+          var li = node("li", "inf__step" + (st.label.length > 12 ? " inf__step--long" : ""));   // libellé long : au-dessus de la sanction
+          li.appendChild(node("span", "inf__n", typo(st.label)));
+          li.appendChild(inline(node("span", "inf__v inf__v--s" + st.sev), st.value, opts));
+          steps.appendChild(li);
+        });
+        card.appendChild(steps);
+      }
+      if (it.notes.length) { var note = node("div", "inf__note"); render(it.notes.join("\n"), note, opts); card.appendChild(note); }
+      grid.appendChild(card);
+    });
+    target.appendChild(grid);
+    return target;
+  }
+
+  // Texte brut d'une infraction (recherche)
+  function infractionText(it) {
+    return [it.title].concat(it.refs, it.steps.map(function (st) { return st.label + " " + st.value; }), it.notes.map(function (l) { return plain(l); })).join(" ");
+  }
+
+  root.SLRules = { LABELS: LABELS, parse: parse, render: render, inline: inline, plain: plain, fold: fold, typo: typo, parseInfractions: parseInfractions, renderInfractions: renderInfractions, infractionText: infractionText, severity: severity };
 })(window);

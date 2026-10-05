@@ -50,14 +50,30 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   - **Mise en forme du texte** (une ligne = un paragraphe) : `* texte` puce, `1. texte` liste numérotée, `**gras**`,
     `« phrase »` citation, `Interdit` / `Autorisé` / `Exemple` seuls sur une ligne = intertitres colorés, `### Titre` =
     encadré, `a → b → c` = enchaînement. Rien n'est jamais interprété comme du HTML.
-  - **Barème des sanctions (indicatif)** : onglet *Règlement → Barème indicatif*. Quatre niveaux fixes (Mineure, Modérée,
-    Grave, Critique) avec leur texte (exemples, sanctions possibles…), une introduction, et jusqu'à 12 **sections libres**
-    sous les niveaux (facteurs aggravants en rouge, atténuants en vert, récidive, sanctions complémentaires, principe
-    fondamental en encadré) : titre, type, texte, ordre (↑ ↓), ajout et suppression. C'est une section **séparée** :
-    aucune règle n'est reliée à un niveau ni à une sanction. Il est distinct du barème privé du staff (*Sanctions → Barème*).
-    Il se retrouve par la recherche du site et par des adresses (`reglement.html#bareme-grave`, `#bareme-s2`). Si votre
-    barème est vide alors que `data/reglement.json` en contient un, un encadré propose de **l'ajouter d'un clic** (rien
-    n'est remplacé) ; l'import initial le reprend aussi.
+  - **Barème des sanctions (indicatif)** : onglet *Règlement → Barème indicatif*. Une introduction, puis jusqu'à 24
+    **sections** dans l'ordre choisi (↑ ↓, ajout, suppression). Une section de type **catégorie d'infractions**
+    (Comportement, Roleplay, Scènes…) décrit une infraction par bloc, séparés par une ligne vide :
+    ```
+    Metagaming
+    🔗 Règle 2.1 — Metagaming
+    1re fois — Avertissement / Warn
+    2e fois — Ban 1 jour
+    Récidive lourde — Réévaluation Whitelist
+    Une remarque sous les étapes.
+    ```
+    Le site affiche chaque infraction en carte compacte : nom, renvois vers les règles (les **numéros deviennent des
+    liens** vers la règle), progression des sanctions (pastille de couleur selon la gravité : avertissement < ban 1-3 j
+    < ban 7-14 j < définitif) et remarque. Sous chaque texte, le panel annonce le nombre d'infractions reconnues, signale
+    les **renvois vers une règle introuvable** et propose un **aperçu** identique au site. Les autres types (texte
+    standard, principe en encadré, aggravant, atténuant) s'écrivent comme une règle. Attention : les numéros de règles
+    sont saisis, ils ne suivent pas une règle déplacée — le panel signale ceux qui ne mènent plus nulle part.
+    C'est une section **séparée** des règles, distincte du barème privé du staff (*Sanctions → Barème*). Elle se retrouve
+    par la recherche du site (chaque infraction est un résultat) et par des adresses (`reglement.html#bareme-s2` =
+    catégorie, `#bareme-s2-4` = infraction). **Nouvelle version du barème** : si votre barème ne contient pas encore
+    de catégorie d'infractions alors que `data/reglement.json` en contient, un encadré propose de **l'appliquer**
+    (il remplace l'ancien barème, après confirmation ; s'il est vide, il est simplement ajouté). *Rétablir le barème
+    d'origine* reste disponible. Les anciens niveaux (Mineure…Critique) ne sont plus éditables : ils disparaissent quand
+    le nouveau barème est appliqué.
   - La date « Dernière mise à jour » du site ne change que lorsqu'un changement touche du contenu **publié**.
   - **Chapitres d'origine absents** : si `data/reglement.json` contient un chapitre que votre règlement n'a pas (par
     exemple la *Charte Whitelist* ajoutée après l'import), un encadré propose de **l'ajouter sans toucher au reste** (rien
@@ -158,8 +174,8 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 | `penalties` | Barème : catégorie, infraction (`name`), paliers au format JSON (`steps`), précisions (`notes`) |
 | `rule_chapters` | Règlement : chapitres (titre, introduction, `numbered` = numéroté ou non, ordre, `published`) |
 | `rules` | Règlement : règles (chapitre, ordre, titre, texte, `published`, `important`, dernière modification et auteur) |
-| `rule_levels` | Barème indicatif public : le texte de chacun des 4 niveaux |
-| `rules_meta` | Réglages du règlement : `initialized` (import fait), date de dernière mise à jour, introduction du barème |
+| `rule_levels` | Anciens niveaux du barème indicatif (Mineure…Critique) : vides depuis le nouveau barème, conservés pour compatibilité |
+| `rules_meta` | Réglages du règlement : `initialized` (import fait), date de dernière mise à jour, introduction du barème, sections du barème (JSON) |
 
 ## Étape 4 – Relier la base et renseigner les réglages
 Dans le Worker → **Settings** :

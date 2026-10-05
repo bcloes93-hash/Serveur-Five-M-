@@ -73,9 +73,13 @@ const MAX_BODY_BYTES = 5000;
 const RULES_LEVEL = "manager";
 const SANCTION_LEVELS = [["mineure", "Mineure"], ["moderee", "Modérée"], ["grave", "Grave"], ["critique", "Critique"]];
 const BAREME_INTRO = "Le barème reste indicatif et la décision finale dépend toujours du contexte.";
-// Sections libres du barème (facteurs aggravants, récidive…) : « info » = neutre, « up » = aggravant, « down » = atténuant, « key » = principe (encadré).
-const BAREME_KINDS = ["info", "up", "down", "key"];
-const MAX_BAREME_SECTIONS = 12;
+// Sections du barème : « infractions » = catégorie d'infractions (cartes : renvois vers les règles + progression des sanctions),
+// « info » = neutre, « up » = aggravant, « down » = atténuant, « key » = principe (encadré).
+const BAREME_KINDS = ["infractions", "info", "up", "down", "key"];
+const MAX_BAREME_SECTIONS = 24;
+const MAX_BAREME_BODY = 12000;
+const MAX_BAREME_INTRO = 3000;
+const MAX_BAREME_BYTES = 120000;   // taille maximale de l'envoi complet du barème (introduction + toutes les sections)
 const MAX_RULES_BODY_BYTES = 30000;
 const MAX_IMPORT_BYTES = 200000;
 const DISCORD = "https://discord.com/api/v10";
@@ -408,7 +412,7 @@ function readSections(json) {
   try {
     const list = JSON.parse(json || "[]");
     return (Array.isArray(list) ? list : []).slice(0, MAX_BAREME_SECTIONS).filter((x) => x && typeof x === "object")
-      .map((x) => ({ title: oneLine(x.title, 100), body: multiLine(x.body, 3000), kind: BAREME_KINDS.includes(x.kind) ? x.kind : "info" }))
+      .map((x) => ({ title: oneLine(x.title, 100), body: multiLine(x.body, MAX_BAREME_BODY), kind: BAREME_KINDS.includes(x.kind) ? x.kind : "info" }))
       .filter((x) => x.title);
   } catch { return []; }
 }
@@ -497,7 +501,7 @@ async function rulesApi(request, env, url, user, reply) {
       id: c.id, title: c.title, intro: c.intro, numbered: flagged(c.numbered), published: flagged(c.published), position: c.position,
       rules: data.rules.filter((r) => r.chapter_id === c.id).map((r) => ({ id: r.id, chapter_id: r.chapter_id, position: r.position, title: r.title, body: r.body, published: flagged(r.published), important: flagged(r.important), updated_at: r.updated_at, updated_by: r.updated_by })),
     }));
-    return reply({ initialized: data.initialized, missing: false, updated: data.updated, chapters, bareme: data.bareme, min_level: RULES_LEVEL });
+    return reply({ initialized: data.initialized, missing: false, updated: data.updated, chapters, bareme: data.bareme, min_level: RULES_LEVEL, limits: { bareme_kinds: BAREME_KINDS, bareme_sections: MAX_BAREME_SECTIONS, bareme_body: MAX_BAREME_BODY } });
   }
 
   // Import du règlement d'origine (fondateur) : par morceaux, un chapitre à la fois, pour rester léger.
@@ -543,7 +547,7 @@ async function rulesApi(request, env, url, user, reply) {
   }
 
   // Tout le reste exige que le règlement ait été importé (ou commencé depuis zéro) : sinon on guide vers l'import.
-  const readBody = async () => { const i = await readObject(request, MAX_RULES_BODY_BYTES); return i.body ? { body: i.body } : { fail: reply({ error: i.error }, i.status) }; };
+  const readBody = async (max = MAX_RULES_BODY_BYTES) => { const i = await readObject(request, max); return i.body ? { body: i.body } : { fail: reply({ error: i.error }, i.status) }; };
   const now = () => new Date().toISOString();
 
   /* --- chapitres --- */
@@ -658,7 +662,7 @@ async function rulesApi(request, env, url, user, reply) {
 
   /* --- barème public (indicatif) --- */
   if (path === "/api/rules-bareme" && method === "PUT") {
-    const got = await readBody(); if (got.fail) return got.fail;
+    const got = await readBody(MAX_BAREME_BYTES); if (got.fail) return got.fail;
     const b = got.body, levels = b.levels && typeof b.levels === "object" && !Array.isArray(b.levels) ? b.levels : {};
     const keys = SANCTION_LEVELS.map(([k]) => k);
     if (Object.keys(levels).some((k) => !keys.includes(k))) return reply({ error: "Niveau de barème inconnu." }, 400);
@@ -667,7 +671,7 @@ async function rulesApi(request, env, url, user, reply) {
     for (const k of Object.keys(levels)) {
       stmts.push(env.DB.prepare("INSERT INTO rule_levels (level, body, updated_at) VALUES (?, ?, ?) ON CONFLICT(level) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at").bind(k, multiLine(levels[k], 2500), stamp));
     }
-    if ("intro" in b) stmts.push(env.DB.prepare("INSERT INTO rules_meta (k, v) VALUES ('bareme_intro', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(multiLine(b.intro, 1500) || BAREME_INTRO));
+    if ("intro" in b) stmts.push(env.DB.prepare("INSERT INTO rules_meta (k, v) VALUES ('bareme_intro', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(multiLine(b.intro, MAX_BAREME_INTRO) || BAREME_INTRO));
     if ("sections" in b) {
       if (!Array.isArray(b.sections) || b.sections.length > MAX_BAREME_SECTIONS) return reply({ error: `Maximum ${MAX_BAREME_SECTIONS} sections.` }, 400);
       const list = [];
@@ -676,7 +680,7 @@ async function rulesApi(request, env, url, user, reply) {
         const kind = x.kind === undefined ? "info" : String(x.kind);
         if (!oneLine(x.title, 100)) return reply({ error: `Section ${i + 1} : le titre est obligatoire.` }, 400);
         if (!BAREME_KINDS.includes(kind)) return reply({ error: `Section ${i + 1} : type invalide.` }, 400);
-        list.push({ title: oneLine(x.title, 100), body: multiLine(x.body, 3000), kind });
+        list.push({ title: oneLine(x.title, 100), body: multiLine(x.body, MAX_BAREME_BODY), kind });
       }
       stmts.push(env.DB.prepare("INSERT INTO rules_meta (k, v) VALUES ('bareme_sections', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(list)));
     }

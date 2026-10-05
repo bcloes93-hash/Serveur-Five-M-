@@ -69,17 +69,25 @@
       ch.fHead = R.fold((label ? label + " " : "") + c.title);
       return ch;
     });
-    // Le barème a aussi ses entrées (niveaux et sections) : elles se retrouvent par la recherche et par leur adresse (#bareme-grave)
-    var bar = [], bo = 1000000, barCh = { id: "bareme", label: "", title: "Barème des sanctions", fHead: R.fold("Barème des sanctions") };
-    var addBar = function (id, title, body) {
-      var plain = R.plain(body || "");
-      bar.push({ id: id, num: "", title: title, body: body || "", important: false, chapter: barCh, order: bo++, plain: plain, fTitle: R.fold(title), fBody: R.fold(plain), fNum: "", bar: true });
+    // Le barème a aussi ses entrées (niveaux, sections, et chaque infraction) : elles se retrouvent par la recherche et par leur adresse (#bareme-s2-3)
+    var bar = [], bo = 1000000, cats = [], barCh = { id: "bareme", label: "", title: "Barème des sanctions", fHead: R.fold("Barème des sanctions") };
+    var addBar = function (id, title, body, ch, plain) {
+      plain = plain != null ? plain : R.plain(body || "");
+      bar.push({ id: id, num: "", title: title, body: body || "", important: false, chapter: ch || barCh, order: bo++, plain: plain, fTitle: R.fold(title), fBody: R.fold(plain), fNum: "", bar: true });
     };
     if (data.bareme) {
-      (data.bareme.levels || []).forEach(function (lv, i) { addBar("bareme-" + lv.key, "Niveau " + (i + 1) + " — " + lv.label, lv.body); });
-      (data.bareme.sections || []).forEach(function (sc, i) { addBar("bareme-s" + (i + 1), sc.title, sc.body); });
+      (data.bareme.levels || []).forEach(function (lv, i) { if (lv.body) addBar("bareme-" + lv.key, "Niveau " + (i + 1) + " — " + lv.label, lv.body); });
+      (data.bareme.sections || []).forEach(function (sc, i) {
+        var id = "bareme-s" + (i + 1);
+        if (sc.kind === "infractions") {
+          var parsed = R.parseInfractions(sc.body), ch = { id: "bareme", label: "", title: "Barème des sanctions · " + sc.title, fHead: R.fold("Barème des sanctions " + sc.title) };
+          cats.push({ id: id, title: sc.title, count: parsed.items.length });
+          addBar(id, sc.title, sc.body, barCh, parsed.lead.join(" "));
+          parsed.items.forEach(function (it, j) { addBar(id + "-" + (j + 1), it.title || sc.title, "", ch, R.infractionText(it)); });
+        } else addBar(id, sc.title, sc.body);
+      });
     }
-    return { chapters: chapters, bareme: data.bareme || null, bar: bar, updated: data.updated || "", hasImportant: hasImportant };
+    return { chapters: chapters, bareme: data.bareme || null, bar: bar, cats: cats, updated: data.updated || "", hasImportant: hasImportant };
   }
   var barById = {};
   function index() {
@@ -88,7 +96,8 @@
     model.bar.forEach(function (b) { barById[b.id] = b; });
   }
   function chapterHref(num) { var c = byId["chapitre-" + num]; return c ? "#" + c.id : null; }
-  var RENDER_OPTS = { chapterHref: chapterHref };
+  function ruleHref(num) { var id = "r" + String(num).replace(".", "-"); return ruleById[id] ? "#" + id : null; }   // « 5.12 » -> #r5-12 (si cette règle est publiée)
+  var RENDER_OPTS = { chapterHref: chapterHref, ruleHref: ruleHref };
 
   /* ---------- Colonne de gauche ---------- */
   function navLink(href, key, num, name, meta) {
@@ -110,7 +119,8 @@
       list.appendChild(navLink("#" + c.id, c.key, c.label, c.title, n + (n > 1 ? " règles" : " règle")));
     });
     if (model.bareme) {
-      var li = navLink("#bareme", "bareme", "Barème", "Barème des sanctions", "Indicatif · 4 niveaux");
+      var nInf = model.cats.reduce(function (t, c) { return t + c.count; }, 0), hasLevels = (model.bareme.levels || []).some(function (l) { return l.body; });
+      var li = navLink("#bareme", "bareme", "Barème", "Barème des sanctions", "Indicatif · " + (nInf ? nInf + (nInf > 1 ? " infractions" : " infraction") : hasLevels ? "4 niveaux" : "à titre de référence"));
       li.className = "regl__sep";
       list.appendChild(li);
     }
@@ -251,35 +261,63 @@
     var intro = el("div", "chapter__intro"); R.render(b.intro || "", intro, RENDER_OPTS);
     head.appendChild(intro);
     sec.appendChild(head);
-    var grid = el("div", "levels");
-    (b.levels || []).forEach(function (lv, i) {
-      var card = el("article", "level level--" + lv.key);
-      card.id = "bareme-" + lv.key;
-      var top = el("div", "level__top");
-      var name = el("div", "level__id");
-      name.appendChild(el("p", "level__n", "Niveau " + (i + 1)));
-      name.appendChild(el("h3", "level__name", lv.label));
-      top.appendChild(name);
-      var meter = el("span", "level__meter"); meter.setAttribute("aria-hidden", "true");
-      for (var k = 0; k < 4; k++) meter.appendChild(el("i", k <= i ? "on" : ""));
-      top.appendChild(meter);
-      card.appendChild(top);
-      if (lv.body) { var body = el("div", "level__body"); R.render(lv.body, body, RENDER_OPTS); card.appendChild(body); }
-      grid.appendChild(card);
-    });
-    sec.appendChild(grid);
-    if ((b.sections || []).length) {
-      var wrap = el("div", "bsections");
-      b.sections.forEach(function (sc, i) {
+    var hasLevels = (b.levels || []).some(function (lv) { return lv.body; });
+    if (hasLevels) {   // ancien barème à quatre niveaux, encore géré si le panel en contient un
+      var grid = el("div", "levels");
+      (b.levels || []).forEach(function (lv, i) {
+        var card = el("article", "level level--" + lv.key);
+        card.id = "bareme-" + lv.key;
+        var top = el("div", "level__top");
+        var name = el("div", "level__id");
+        name.appendChild(el("p", "level__n", "Niveau " + (i + 1)));
+        name.appendChild(el("h3", "level__name", lv.label));
+        top.appendChild(name);
+        var meter = el("span", "level__meter"); meter.setAttribute("aria-hidden", "true");
+        for (var k = 0; k < 4; k++) meter.appendChild(el("i", k <= i ? "on" : ""));
+        top.appendChild(meter);
+        card.appendChild(top);
+        if (lv.body) { var body = el("div", "level__body"); R.render(lv.body, body, RENDER_OPTS); card.appendChild(body); }
+        grid.appendChild(card);
+      });
+      sec.appendChild(grid);
+    }
+    if (model.cats.length > 1) {   // accès direct à chaque catégorie
+      var jump = el("nav", "binf__nav");
+      jump.setAttribute("aria-label", "Catégories du barème");
+      model.cats.forEach(function (c) {
+        var a = el("a", "regl__chip", c.title);
+        a.setAttribute("href", "#" + c.id);
+        a.appendChild(el("span", "binf__n", String(c.count)));
+        jump.appendChild(a);
+      });
+      sec.appendChild(jump);
+    }
+    var run = null;   // suite de sections « encadrées » (principe, facteurs…) regroupées dans une même grille
+    (b.sections || []).forEach(function (sc, i) {
+      var id = "bareme-s" + (i + 1);
+      if (sc.kind === "infractions") {
+        run = null;
+        var cat = el("section", "binf");
+        cat.id = id;
+        cat.setAttribute("aria-labelledby", id + "-t");
+        var ch = el("header", "binf__head");
+        var t = el("h3", "binf__title", R.typo(sc.title)); t.id = id + "-t";
+        ch.appendChild(t);
+        var n = R.parseInfractions(sc.body).items.length;
+        ch.appendChild(el("span", "binf__count", n + (n > 1 ? " infractions" : " infraction")));
+        cat.appendChild(ch);
+        R.renderInfractions(sc.body || "", cat, { chapterHref: chapterHref, ruleHref: ruleHref, idPrefix: id });
+        sec.appendChild(cat);
+      } else {
+        if (!run) { run = el("div", "bsections"); sec.appendChild(run); }
         var box = el("article", "bsec bsec--" + (sc.kind || "info"));
-        box.id = "bareme-s" + (i + 1);
+        box.id = id;
         box.appendChild(el("h3", "bsec__title", R.typo(sc.title)));
         var body = el("div", "bsec__body"); R.render(sc.body || "", body, RENDER_OPTS);
         box.appendChild(body);
-        wrap.appendChild(box);
-      });
-      sec.appendChild(wrap);
-    }
+        run.appendChild(box);
+      }
+    });
     content.appendChild(sec);
   }
 
@@ -354,7 +392,9 @@
     var out = search(query), box = el("section", "results");
     box.setAttribute("aria-label", "Résultats de la recherche");
     var total = out.hits.length;
-    var head = el("p", "results__count", total ? total + (total > 1 ? " règles trouvées" : " règle trouvée") + " pour « " + query + " »" + (total > MAX_RESULTS ? " (" + MAX_RESULTS + " premières affichées)" : "") : "Aucune règle ne correspond à « " + query + " ».");
+    var withBar = out.hits.some(function (h) { return h.rule.bar; });   // le barème (infractions, sections) fait aussi partie des résultats
+    var noun = withBar ? (total > 1 ? " résultats trouvés" : " résultat trouvé") : (total > 1 ? " règles trouvées" : " règle trouvée");
+    var head = el("p", "results__count", total ? total + noun + " pour « " + query + " »" + (total > MAX_RESULTS ? " (" + MAX_RESULTS + " premières affichées)" : "") : "Aucune règle ne correspond à « " + query + " ».");
     head.setAttribute("role", "status");
     box.appendChild(head);
     if (out.chapters.length) {
