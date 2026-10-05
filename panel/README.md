@@ -85,10 +85,12 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
     « Coller ici » dans chaque case voulue ;
   - **remettre quelqu'un « à placer »** : glissez sa carte sur la zone « À placer » (ou menu « Déplacer vers… ») ;
   - « Retirer » (sur une carte d'un pôle) enlève la personne de cette case ; si c'était sa seule case, elle retourne
-    dans « À placer » : **elle n'est jamais supprimée par ce bouton**. Seul « Supprimer » (sur une carte de « À placer »,
-    ou dans la liste de gestion en bas de page) l'enlève définitivement, après confirmation ;
-  - ajouter quelqu'un depuis le formulaire : sans case choisie, il arrive dans **« À placer »** (en haut du schéma),
-    d'où on le glisse dans l'arbre. Les personnes déjà enregistrées avant cette version (anciens rangs) y arrivent aussi ;
+    dans « À placer » : **elle n'est jamais supprimée par ce bouton**. Seul « Supprimer » (sur une carte de « À placer »)
+    l'enlève définitivement, après confirmation ;
+  - **plus de formulaire d'ajout** : les personnes du staff (rôle support et au-dessus) arrivent **toutes seules dans
+    « À placer »** à leur première connexion au panel, avec leur photo Discord ; il suffit de les glisser dans l'arbre ;
+  - le bouton **« Titre »** de chaque carte (dans les outils) modifie le titre affiché sur la carte et sur la page Équipe, par
+    exemple « Fondateur · Développeur » ; laissé vide, c'est le nom de la case qui s'affiche ;
   - **à la connexion, toute personne du staff (support et au-dessus) est ajoutée automatiquement dans « À placer »**, avec sa
     **photo Discord**. Si une fiche créée à la main porte déjà son nom (pseudo sur le serveur, nom affiché ou nom d'utilisateur
     Discord), elle est simplement reliée à son compte, sans doublon, et affiche sa photo. Seules les personnes qui se sont

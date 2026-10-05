@@ -564,7 +564,7 @@
   var POOL = { key: "other", label: "À placer", title: "À placer" };   // la réserve, hors de l'arbre
   function caseOf(key) { return key === "other" ? POOL : ORG[key]; }
   var orgState = { items: [], editing: null, dragId: null, clip: null, pole: "", relayOk: true };
-  var mForm = $("#member-form"), mStatus = $("#m-status"), oStatus = $("#org-status");
+  var oStatus = $("#org-status");
 
   function inTree(kind) { return Object.prototype.hasOwnProperty.call(ORG, kind); }
   function sameName(a, b) { return String(a).trim().toLowerCase() === String(b).trim().toLowerCase(); }
@@ -606,6 +606,19 @@
     api("POST", "/api/org", { name: name, role: isGenericRole(role) ? "" : role, kind: key, position: nextPos(key) }).then(function () {
       return loadOrg().then(function () { orgSay("« " + name + " » figure aussi dans « " + target.label + " ».", true); });
     }, function (err) { if (err.status !== 401) orgSay(lastResort(err, "Ajout impossible."), false); });
+  }
+
+  // Titre affiché sur la carte et sur la page Équipe (ex. « Fondateur · Développeur »). Vide : le nom de la case s'affiche.
+  function editTitle(m) {
+    var current = isGenericRole(m.role) ? "" : m.role;
+    var answer = window.prompt("Titre affiché pour « " + m.name + " » (par exemple « Fondateur · Développeur »).\nLaissez vide pour afficher simplement le nom de la case.", current);
+    if (answer === null) return;
+    answer = answer.replace(/\s+/g, " ").trim().slice(0, 60);
+    if (answer === current) return;
+    orgSay("Enregistrement du titre de « " + m.name + " »…", false);
+    api("PUT", "/api/org/" + encodeURIComponent(m.id), { name: m.name, role: answer, kind: m.kind, position: m.position }).then(function () {
+      return loadOrg().then(function () { orgSay(answer ? "Titre de « " + m.name + " » enregistré : « " + answer + " »." : "Titre de « " + m.name + " » retiré : le nom de la case s'affiche.", true); });
+    }, function (err) { if (err.status !== 401) orgSay(lastResort(err, "Enregistrement impossible."), false); });
   }
 
   /* --- cartes et cases --- */
@@ -671,6 +684,11 @@
     cp.setAttribute("aria-label", "Copier " + m.name + " pour le coller dans d'autres pôles");
     cp.addEventListener("click", function () { setClip(m); });
     tools.appendChild(cp);
+    var tt = el("button", "tcard__btn", "Titre");
+    tt.type = "button";
+    tt.setAttribute("aria-label", "Modifier le titre affiché de " + m.name);
+    tt.addEventListener("click", function () { editTitle(m); });
+    tools.appendChild(tt);
     var inPool = !inTree(m.kind);
     var rm = el("button", "tcard__btn tcard__btn--danger", inPool ? "Supprimer" : "Retirer");
     rm.type = "button";
@@ -786,10 +804,9 @@
     var movable = isAdmin() && orgState.relayOk;
     $("#org-warn").hidden = !(isAdmin() && !orgState.relayOk);
     $(".orgbar").hidden = !movable;
-    mForm.closest(".panelbox").hidden = !movable;
     $("#org-legend").hidden = !orgState.items.length;
     if (!orgState.items.length) {
-      hint.textContent = movable ? "L'organigramme est vide. Ajoutez des membres avec le formulaire ci-dessous." : "L'organigramme est vide pour le moment.";
+      hint.textContent = movable ? "L'organigramme est vide. Les personnes du staff y arrivent dans « À placer » dès leur première connexion au panel : glissez-les ensuite dans l'arbre." : "L'organigramme est vide pour le moment.";
       $("#org-summary").textContent = "";
       return;
     }
@@ -869,75 +886,18 @@
   function setEdit(on) {
     $("#org-chart").classList.toggle("org__chart--edit", on);
     editBtn.setAttribute("aria-pressed", on ? "true" : "false");
-    editBtn.textContent = on ? "Masquer les outils" : "Afficher les outils (copier, déplacer, retirer)";
+    editBtn.textContent = on ? "Masquer les outils" : "Afficher les outils (copier, déplacer, titre, retirer)";
   }
   editBtn.addEventListener("click", function () { setEdit(editBtn.getAttribute("aria-pressed") !== "true"); });
   setEdit(!!(window.matchMedia && window.matchMedia("(hover: none)").matches));
-
-  function renderMembers() {
-    var ul = $("#m-list"); clear(ul);
-    orgState.items.forEach(function (m) {
-      var li = el("li", "manage__item");
-      var info = el("div", "manage__info");
-      info.appendChild(el("strong", null, m.name));
-      info.appendChild(el("span", "manage__meta", "Case : " + (inTree(m.kind) ? ORG[m.kind].label : "à placer") + (isGenericRole(m.role) ? "" : " · titre : " + m.role) + " · ordre " + m.position));
-      li.appendChild(info);
-      var actions = el("div", "manage__actions");
-      actions.appendChild(linkButton("Modifier", function () { startEditMember(m); }));
-      actions.appendChild(linkButton("Supprimer", function () { deleteRow(m); }, true));
-      li.appendChild(actions);
-      ul.appendChild(li);
-    });
-  }
 
   function loadOrg() {
     return api("GET", "/api/org").then(function (data) {
       orgState.items = data.org;
       orgState.relayOk = Array.isArray(data.nodes) && ORG_KEYS.concat(["other"]).every(function (k) { return data.nodes.indexOf(k) >= 0; });
-      renderOrg(); renderMembers();
+      renderOrg();
     }, function (e) { if (e.status !== 401) $("#org-hint").textContent = e.message || ""; });
   }
-
-  function resetMemberForm() {
-    mForm.reset();
-    orgState.editing = null;
-    $("#m-form-title").textContent = "Gérer l'organigramme";
-    $("#m-submit").textContent = "Ajouter";
-    $("#m-cancel").hidden = true;
-  }
-  function startEditMember(m) {
-    orgState.editing = m.id;
-    var f = mForm.elements;
-    f.name.value = m.name; f.role.value = isGenericRole(m.role) ? "" : m.role; f.kind.value = inTree(m.kind) ? m.kind : "other"; f.position.value = m.position;
-    $("#m-form-title").textContent = "Modifier un membre";
-    $("#m-submit").textContent = "Enregistrer";
-    $("#m-cancel").hidden = false;
-    mStatus.textContent = "";
-    f.name.focus();
-    mForm.scrollIntoView({ block: "center" });
-  }
-  $("#m-cancel").addEventListener("click", resetMemberForm);
-
-  mForm.addEventListener("submit", function (e) {
-    e.preventDefault();
-    mStatus.className = "form__status";
-    mStatus.textContent = "";
-    if (!mForm.reportValidity()) return;
-    var f = mForm.elements;
-    var body = { name: f.name.value, role: f.role.value, kind: f.kind.value, position: f.position.value };
-    var btn = $("#m-submit");
-    btn.disabled = true;
-    var req = orgState.editing ? api("PUT", "/api/org/" + encodeURIComponent(orgState.editing), body) : api("POST", "/api/org", body);
-    req.then(function () {
-      resetMemberForm();
-      return loadOrg().then(function () {
-        mStatus.className = "form__status form__status--ok";
-        mStatus.textContent = "Organigramme mis à jour.";
-      });
-    }, function (err) {
-      if (err.status !== 401) mStatus.textContent = err.message || "Enregistrement impossible.";
-    }).then(function () { btn.disabled = false; });
-  });
 
   /* ---------- Règlement : chapitres, règles, barème indicatif ---------- */
   // Les numéros (5.12) ne sont pas saisis : ils suivent l'ordre choisi ici et ne comptent que ce qui est publié (comme sur le site).
