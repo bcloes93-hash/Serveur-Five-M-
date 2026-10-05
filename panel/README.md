@@ -19,23 +19,37 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   - *Support* (facultatif) : lecture seule du barème, des commandes et de l'organigramme. **Pas d'accès** au journal
     des sanctions, qui contient des données sur des joueurs.
   - *Modération* : en plus, consulte le journal des sanctions et y ajoute des sanctions.
-  - *Administration* : en plus, supprime des sanctions, modifie les commandes et l'organigramme, et consulte
-    le journal d'activité.
-  - *Manager* (facultatif) et *Fondateur* (facultatif) : mêmes droits que l'administration, avec une **visibilité
-    plus large des commandes** (voir ci-dessous).
+  - *Administration* : en plus, supprime des sanctions et consulte le journal d'activité. Elle **ne modifie aucun
+    contenu du site** (ni les commandes, ni l'organigramme, ni le barème, ni le règlement).
+  - *Manager* (facultatif) : en plus, **modifie l'organigramme et le barème des sanctions**, avec une **visibilité plus
+    large des commandes** (voir ci-dessous). Il ne modifie ni les commandes ni le règlement.
+  - *Fondateur* (facultatif) : tout, y compris **le règlement** (règles, chapitres, import) et **les commandes**.
+
+  **Qui modifie quoi** (réglé en tête de `worker.mjs`, constante `PERMS`, et appliqué par le serveur) :
+
+  | Contenu | Peut le modifier |
+  |---|---|
+  | Règlement (règles, chapitres, import) | Fondateur |
+  | Barème des sanctions (site + onglet Sanctions) | Managers et fondateur |
+  | Organigramme (page Équipe) | Managers et fondateur |
+  | Commandes | Fondateur |
+
+  L'onglet **Modifications du site** (dernier du menu, juste au-dessus de « Se déconnecter ») affiche ce tableau : chaque
+  grade y voit ce qu'il peut modifier (bouton *Ouvrir*) et ce qui lui est réservé. Le panel lit ces droits dans
+  `/api/me` : si le relais n'est pas à jour, un avertissement s'affiche au fondateur.
 
   Si une personne cumule plusieurs rôles, le niveau le plus élevé l'emporte. Un rôle absent de toutes les listes n'a aucun accès.
 - **Commandes visibles selon le niveau** : chaque commande a un niveau minimal. Chaque personne ne reçoit que les commandes
   de son niveau et des niveaux inférieurs : le serveur ne les envoie même pas aux autres (ce n'est pas un simple masquage
-  à l'écran). Un administrateur ne peut ni créer, ni modifier, ni supprimer une commande réservée à un niveau supérieur
+  à l'écran). Seul le fondateur modifie les commandes (il peut les réserver à n'importe quel niveau) ; avant, un administrateur ne pouvait ni créer, ni modifier, ni supprimer une commande réservée à un niveau supérieur
   au sien, et le journal d'activité masque leur nom.
-- **Barème des sanctions** (onglet *Sanctions → Barème*) : **le même barème que celui du site** (*Règlement → Barème*),
+- **Barème des sanctions** (onglet *Sanctions → Barème*) : **le même barème que celui du site** (*Modifications du site → Barème des sanctions*),
   lu en direct : il n'y a plus de liste à part à tenir à jour. Pour chaque infraction (par catégorie), les renvois vers
   les règles (numéros cliquables), la progression des sanctions (1re fois, 2e fois, récidive…, pastille de couleur selon
   la gravité) et les remarques. Il se lit d'un coup d'œil, se recherche (nom, mot-clé, numéro de règle) et un bouton
   « Noter dans le journal » reprend l'infraction dans le journal. Visible par tout le staff. Pour le modifier : *Règlement
-  → Barème* (managers et fondateur) — un bouton « Modifier le barème » y mène.
-- **Règlement** (onglet *Règlement*, **manager et fondateur**) : les chapitres et les règles de la page publique
+  → Barème des sanctions* (managers et fondateur) — un bouton « Modifier le barème » y mène.
+- **Règlement** (*Modifications du site → Règlement*, **fondateur** ; le barème : managers et fondateur) : les chapitres et les règles de la page publique
   [Règlement](../reglement.html) se gèrent ici, sans toucher au code. Le site lit la version publiée par une route
   publique en lecture seule (`/api/public/rules`, qui ne renvoie que ce qui est publié, sans identifiant ni nom d'auteur).
   - **Modifier le texte** d'une règle (éditeur avec barre de mise en forme et **aperçu en direct**), **ajouter**,
@@ -52,7 +66,7 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   - **Mise en forme du texte** (une ligne = un paragraphe) : `* texte` puce, `1. texte` liste numérotée, `**gras**`,
     `« phrase »` citation, `Interdit` / `Autorisé` / `Exemple` seuls sur une ligne = intertitres colorés, `### Titre` =
     encadré, `a → b → c` = enchaînement. Rien n'est jamais interprété comme du HTML.
-  - **Barème des sanctions (indicatif)** : onglet *Règlement → Barème indicatif*. Une introduction, puis jusqu'à 24
+  - **Barème des sanctions (indicatif)** : *Modifications du site → Barème des sanctions*. Une introduction, puis jusqu'à 24
     **sections** dans l'ordre choisi (↑ ↓, ajout, suppression). Une section de type **catégorie d'infractions**
     (Comportement, Roleplay, Scènes…) décrit une infraction par bloc, séparés par une ligne vide :
     ```
@@ -89,14 +103,14 @@ Staff ──► « Se connecter avec Discord » ──► relais : est-il dans l
   (Joueur, Support, Modérateur, Administrateur, Manager, Fondateur, Métiers, Technique… selon vos catégories) : un clic sur l'une
   affiche ses commandes, avec leur nombre ; « Toutes » affiche l'ensemble. La recherche porte toujours sur toutes les
   catégories, et un bouton « Copier » récupère la commande. Le staff connecté ne voit que les commandes de son niveau et
-  des niveaux inférieurs ; l'administration les ajoute, les modifie et les supprime depuis le panel. Elles sont stockées
+  des niveaux inférieurs ; le fondateur les ajoute, les modifie et les supprime depuis le panel. Elles sont stockées
   dans la base protégée, **jamais dans le dépôt public**. Les sous-catégories viennent du champ « Catégorie » de chaque
   commande (le numéro devant, comme « 3 · », n'est pas affiché : il sert uniquement à garder l'ordre).
 - **Organigramme** : un arbre par rang et par pôle — Fondateur ; 3 Managers (Responsable Staff, RP, Communauté) ;
   6 Admins (Référent Légal, Illégal, RP, Modération, Événementiel, Technique) ; 4 Modérateurs (Légal, Illégal, RP,
   Communauté) ; 4 Support (Assistance Joueurs, Tickets, Nouveaux Joueurs, Bugs & Signalements) — avec une légende
   « Pôles d'orientation » (un clic met en avant les cases d'un pôle). Visible par tout le staff connecté.
-  L'administration peut :
+  Les managers et le fondateur peuvent :
   - **glisser** une carte dans une autre case pour **déplacer** la personne ;
   - **Ctrl + glisser** (Option sur Mac) pour la **copier** : une même personne peut figurer dans plusieurs pôles ;
   - sans souris (téléphone, clavier) : bouton *Afficher les outils*, puis « Déplacer vers… », ou « Copier » suivi de
@@ -152,7 +166,7 @@ Dans Discord : **Paramètres utilisateur** → **Avancés** → activez le **Mod
 2. Ouvrez la base → onglet **Console**, collez **tout** le contenu de [`schema.sql`](./schema.sql), puis **Execute**.
 3. (Facultatif) Pour pré-remplir l'organigramme avec l'équipe actuelle, collez ensuite le contenu de
    [`seed.sql`](./seed.sql) et **Execute**. **À faire une seule fois** : le refaire créerait des doublons.
-   Sans cette étape, l'organigramme démarre vide et l'administration le remplit depuis le panel.
+   Sans cette étape, l'organigramme démarre vide et les managers ou le fondateur le remplissent depuis le panel.
 4. (Ancien, inutile) [`seed-bareme.sql`](./seed-bareme.sql) pré-remplissait l'ancienne liste privée du barème
    (table `penalties`). Le panel ne la lit plus : le barème des sanctions est celui du Règlement (voir plus bas).
 
@@ -212,15 +226,15 @@ staffApi: "https://santos-legacy-staff.b-cloes93.workers.dev",
 Le lien « Espace staff » apparaît alors dans le pied de page du site, et `staff.html` affiche la connexion.
 
 ## Le barème des sanctions
-Il n'y en a **qu'un** : celui de *Règlement → Barème* (managers et fondateur). Le panel (*Sanctions → Barème*) et la page
+Il n'y en a **qu'un** : celui de *Modifications du site → Barème des sanctions* (managers et fondateur). Le panel (*Sanctions → Barème*) et la page
 publique le lisent à la même source, ils sont donc toujours identiques. Pour le remplir ou le modifier : voir « Barème
 des sanctions (indicatif) » plus haut. L'ancienne liste privée (table `penalties` et routes `/api/penalties`) n'est plus
 utilisée par le panel ; elle reste en base sans effet et peut être ignorée.
 
 ## Remplir les commandes
-Une fois connecté avec un compte **Administration** : onglet **Commandes** → formulaire « Ajouter une commande »
+Une fois connecté avec le compte **Fondateur** : onglet **Commandes** → formulaire « Ajouter une commande »
 (type Discord ou FiveM, catégorie, commande, description, exemple). Chaque ligne a ses boutons *Modifier* et *Supprimer*.
-Seule l'administration peut modifier ; la modération consulte et copie.
+Seul le fondateur peut modifier ; tout le staff consulte et copie.
 
 ## Mettre à jour une base déjà installée (niveaux des commandes)
 Si la base a été créée **avant** l'ajout des niveaux de visibilité, une seule fois, dans la console D1 :
@@ -253,14 +267,15 @@ photos, pas d'inscription automatique), sans erreur.
    `CREATE TABLE IF NOT EXISTS`, sans risque si vous le refaites) et **Execute**.
 2. Collez le nouveau [`worker.mjs`](./worker.mjs) dans le relais du panel (*Edit code* → **Deploy**).
 3. Publiez le site (fichiers `reglement.html`, `staff.html`, `js/`, `css/` et **`data/reglement.json`**).
-4. Connectez-vous au panel avec le compte **fondateur** → onglet *Règlement* → **Importer le règlement d'origine**.
+4. Connectez-vous au panel avec le compte **fondateur** → onglet *Modifications du site* → *Règlement* → **Importer le règlement d'origine**.
    Les textes sont repris tels quels, chapitre par chapitre. Tant que l'import n'est pas terminé, le site affiche la
    version d'origine (`data/reglement.json`) : rien ne change pour les joueurs.
 
 Ensuite, le site lit le règlement depuis le panel. Si le panel est injoignable, le site se rabat sur
 `data/reglement.json`, qui est la **version d'origine** (elle n'est pas mise à jour par vos modifications) : c'est un
-filet de sécurité, pas la version courante. Le niveau minimal pour gérer le règlement est `RULES_LEVEL` en tête de
-`worker.mjs` (`manager` par défaut) ; seul le fondateur peut lancer l'import ou tout remplacer par la version d'origine.
+filet de sécurité, pas la version courante. Le niveau minimal pour gérer le règlement (`rules`, fondateur), le barème
+(`bareme`, manager), l'organigramme (`org`, manager) et les commandes (`commands`, fondateur) se règle dans la constante
+`PERMS` en tête de `worker.mjs` ; seul le fondateur peut lancer l'import ou tout remplacer par la version d'origine.
 
 ## À savoir
 - **Données privées** : les commandes et l'organigramme du panel ne sont lisibles qu'après connexion avec un rôle staff.
@@ -281,4 +296,4 @@ filet de sécurité, pas la version courante. Le niveau minimal pour gérer le r
 node --test panel/worker.test.mjs
 ```
 Les tests utilisent une vraie base SQLite en mémoire et un faux Discord : connexion, droits par rôle, jetons falsifiés,
-injection SQL, recherche, suppression douce, commandes, organigramme et barème (lecture staff, écriture administration).
+injection SQL, recherche, suppression douce, commandes, organigramme et barème (lecture staff, écriture selon `PERMS`).

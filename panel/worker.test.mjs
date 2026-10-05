@@ -391,9 +391,9 @@ test("connexion : ni les non-staff, ni les connexions refusées ne s'inscrivent"
 });
 
 test("connexion : une fiche créée à la main au même nom est reliée au compte (toutes ses cases), sans doublon", async () => {
-  const env = makeEnv();
+  const env = levelsEnv();
   env.DB.raw.exec(readFileSync(new URL("./seed.sql", import.meta.url), "utf8"));
-  const adm = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888", globalName: "Boss" });
+  const adm = await staffToken(env, [ROLE_MANAGER], { userId: "888888888888888888", globalName: "Boss" });
   // Taalback figure déjà dans deux cases, créées à la main
   assert.equal((await send(env, "/api/org", adm, "POST", memberBody({ name: "Taalback", kind: "adm_legal" }))).status, 201);
   const before = orgRows(env).length;
@@ -414,7 +414,7 @@ test("connexion : une fiche créée à la main au même nom est reliée au compt
 });
 
 test("connexion : deux personnes de même nom affiché obtiennent chacune leur fiche ; une copie reprend la photo", async () => {
-  const env = makeEnv();
+  const env = levelsEnv();
   await connect(env, { member: { roles: [ROLE_MOD], nick: "Alex" }, userId: "111111111111111110" });
   await connect(env, { member: { roles: [ROLE_MOD], nick: "Alex" }, userId: "222222222222222220" });
   const rows = orgRows(env);
@@ -422,7 +422,7 @@ test("connexion : deux personnes de même nom affiché obtiennent chacune leur f
   assert.notEqual(rows[0].name.toLowerCase(), rows[1].name.toLowerCase(), "noms distincts");
   assert.match(rows[1].name, /^Alex \(2220\)$/);
   // copie d'une fiche reliée : la nouvelle ligne hérite du compte Discord
-  const adm = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const adm = await staffToken(env, [ROLE_MANAGER], { userId: "888888888888888888" });
   assert.equal((await send(env, "/api/org", adm, "POST", memberBody({ name: "Alex", kind: "adm_rp" }))).status, 201);
   const copy = orgRows(env, "kind = 'adm_rp'")[0];
   assert.deepEqual([copy.discord_id, copy.avatar], ["111111111111111110", "abc123"]);
@@ -432,9 +432,9 @@ test("connexion : deux personnes de même nom affiché obtiennent chacune leur f
 });
 
 test("connexion et organigramme : une base pas encore migrée (sans colonnes Discord) continue de fonctionner", async () => {
-  const env = makeEnv();
+  const env = levelsEnv();
   env.DB.raw.exec("DROP TABLE org; CREATE TABLE org (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT NOT NULL, grp TEXT NOT NULL, tier INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'other', position INTEGER NOT NULL DEFAULT 0);");
-  const adm = await connect(env, { member: { roles: [ROLE_ADMIN], nick: "Boss" } });
+  const adm = await connect(env, { member: { roles: [ROLE_MANAGER], nick: "Boss" } });
   assert.ok(adm.token, "la connexion n'échoue pas");
   assert.equal(orgRows(env).length, 0, "rien n'est inscrit tant que la base n'est pas migrée");
   assert.equal((await send(env, "/api/org", adm.token, "POST", memberBody({ name: "Isar", kind: "adm_rp" }))).status, 201, "l'organigramme reste modifiable");
@@ -444,7 +444,7 @@ test("connexion et organigramme : une base pas encore migrée (sans colonnes Dis
   // la migration fournie s'applique et active la fonction
   env.DB.raw.exec(readFileSync(new URL("./migration-organigramme-discord.sql", import.meta.url), "utf8").replace(/\r?\n/g, " "));
   assert.ok(!/--/.test(readFileSync(new URL("./migration-organigramme-discord.sql", import.meta.url), "utf8")), "migration sans commentaire (console D1)");
-  await connect(env, { member: { roles: [ROLE_ADMIN], nick: "Boss" } });
+  await connect(env, { member: { roles: [ROLE_MANAGER], nick: "Boss" } });
   assert.equal(orgRows(env, "name = 'Boss'").length, 1);
   assert.equal((await (await call(env, "/api/org", { token: adm.token })).json()).org.find((r) => r.name === "Boss").discord_id, "999999999999999999");
 });
@@ -462,10 +462,10 @@ test("commandes et organigramme : refusés sans connexion, même en lecture", as
   }
 });
 
-test("commandes : tout le staff lit, seule l'administration ajoute, modifie et supprime", async () => {
-  const env = makeEnv();
+test("commandes : tout le staff lit, seul le fondateur ajoute, modifie et supprime", async () => {
+  const env = levelsEnv();
   const mod = await staffToken(env, [ROLE_MOD]);
-  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const admin = await staffToken(env, [ROLE_FOUNDER], { userId: "888888888888888888" });
 
   assert.equal((await send(env, "/api/commands", mod, "POST", cmdBody())).status, 403, "un modérateur n'ajoute pas");
   const created = await send(env, "/api/commands", admin, "POST", cmdBody());
@@ -494,8 +494,8 @@ test("commandes : tout le staff lit, seule l'administration ajoute, modifie et s
 });
 
 test("commandes : validation, valeurs par défaut et tri", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_FOUNDER]);
   const post = (b) => send(env, "/api/commands", admin, "POST", b);
   assert.equal((await post(cmdBody({ platform: "autre" }))).status, 400);
   assert.equal((await post(cmdBody({ platform: undefined }))).status, 400);
@@ -517,8 +517,8 @@ test("commandes : validation, valeurs par défaut et tri", async () => {
 });
 
 test("commandes : les textes sont stockés tels quels (SQL et HTML inoffensifs côté serveur)", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_FOUNDER]);
   const evil = "'); DROP TABLE commands; --";
   const html = '<img src=x onerror=alert(1)>';
   assert.equal((await send(env, "/api/commands", admin, "POST", cmdBody({ cmd: evil, descr: html }))).status, 201);
@@ -528,10 +528,10 @@ test("commandes : les textes sont stockés tels quels (SQL et HTML inoffensifs c
 
 const memberBody = (over = {}) => ({ name: "Jaguuar_", role: "Fondateur · Développeur", grp: "Direction", tier: 1, kind: "founder", position: 0, ...over });
 
-test("organigramme : tout le staff lit, seule l'administration modifie ; tout est journalisé", async () => {
-  const env = makeEnv();
+test("organigramme : tout le staff lit, seuls les managers et le fondateur modifient ; tout est journalisé", async () => {
+  const env = levelsEnv();
   const mod = await staffToken(env, [ROLE_MOD]);
-  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const admin = await staffToken(env, [ROLE_MANAGER], { userId: "888888888888888888" });
   assert.equal((await send(env, "/api/org", mod, "POST", memberBody())).status, 403);
   const { id } = await (await send(env, "/api/org", admin, "POST", memberBody())).json();
   assert.equal((await (await call(env, "/api/org", { token: mod })).json()).org.length, 1, "lecture pour la modération");
@@ -546,8 +546,8 @@ test("organigramme : tout le staff lit, seule l'administration modifie ; tout es
 });
 
 test("organigramme : validation, « à placer » par défaut, tri par niveau puis ordre", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_MANAGER]);
   const post = (b) => send(env, "/api/org", admin, "POST", b);
   for (const bad of [{ name: "" }, { name: "   " }, { position: -1 }, { position: 100 }, { position: 1.5 }, { kind: "roi" }, { kind: "manager" }, { kind: "constructor" }, { kind: "__proto__" }]) {
     assert.equal((await post(memberBody(bad))).status, 400, JSON.stringify(bad));
@@ -563,8 +563,8 @@ test("organigramme : validation, « à placer » par défaut, tri par niveau pui
 });
 
 test("organigramme : chaque case de l'arbre fixe le niveau, le groupe et le titre par défaut (rien n'est repris du navigateur)", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_MANAGER]);
   const expected = {
     founder: [1, "Direction", "Fondateur"],
     mgr_staff: [2, "Management", "Responsable Staff"], mgr_rp: [2, "Management", "Responsable RP"], mgr_com: [2, "Management", "Responsable Communauté"],
@@ -590,8 +590,8 @@ test("organigramme : chaque case de l'arbre fixe le niveau, le groupe et le titr
 });
 
 test("organigramme : une personne peut être dans plusieurs cases, mais une seule fois dans la même", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_MANAGER]);
   const mod = await staffToken(env, [ROLE_MOD]);
   const post = (b) => send(env, "/api/org", admin, "POST", b);
   const put = (id, b) => send(env, `/api/org/${id}`, admin, "PUT", b);
@@ -641,12 +641,12 @@ const penaltyBody = (over = {}) => ({
   ...over,
 });
 
-test("barème : refusé sans connexion ; le staff lit, seule l'administration modifie ; tout est journalisé", async () => {
-  const env = makeEnv();
+test("barème (ancienne liste) : refusé sans connexion ; le staff lit, seuls les managers et le fondateur modifient ; tout est journalisé", async () => {
+  const env = levelsEnv();
   assert.equal((await call(env, "/api/penalties")).status, 401);
   assert.equal((await call(env, "/api/penalties", { method: "POST", body: penaltyBody() })).status, 401);
   const mod = await staffToken(env, [ROLE_MOD]);
-  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const admin = await staffToken(env, [ROLE_MANAGER], { userId: "888888888888888888" });
 
   assert.equal((await send(env, "/api/penalties", mod, "POST", penaltyBody())).status, 403);
   const { id } = await (await send(env, "/api/penalties", admin, "POST", penaltyBody())).json();
@@ -671,8 +671,8 @@ test("barème : refusé sans connexion ; le staff lit, seule l'administration mo
 });
 
 test("barème : validation des paliers", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_MANAGER]);
   const post = (b) => send(env, "/api/penalties", admin, "POST", b);
   const bad = [
     { name: " " }, { steps: [] }, { steps: undefined }, { steps: "avertissement" }, { steps: null },
@@ -695,8 +695,8 @@ test("barème : validation des paliers", async () => {
 });
 
 test("barème : tri par catégorie puis par nom ; ligne corrompue en base sans casser la liste", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_MANAGER]);
   const post = (b) => send(env, "/api/penalties", admin, "POST", b);
   await post(penaltyBody({ cat: "Roleplay", name: "Zèbre" }));
   await post(penaltyBody({ cat: "comportement", name: "Beta" }));
@@ -712,8 +712,8 @@ test("barème : tri par catégorie puis par nom ; ligne corrompue en base sans c
 });
 
 test("barème : textes stockés tels quels (SQL et HTML inoffensifs côté serveur)", async () => {
-  const env = makeEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const env = levelsEnv();
+  const admin = await staffToken(env, [ROLE_MANAGER]);
   const evil = "'); DROP TABLE penalties; --";
   assert.equal((await send(env, "/api/penalties", admin, "POST", penaltyBody({ name: evil, notes: "<img src=x onerror=alert(1)>", steps: [{ type: "autre", detail: "<b>x</b>" }] }))).status, 201);
   const row = (await (await call(env, "/api/penalties", { token: admin })).json()).penalties[0];
@@ -721,7 +721,7 @@ test("barème : textes stockés tels quels (SQL et HTML inoffensifs côté serve
 });
 
 test("barème proposé (seed-bareme.sql) : tous les cas et paliers sont valides", async () => {
-  const env = makeEnv();
+  const env = levelsEnv();
   env.DB.raw.exec(readFileSync(new URL("./seed-bareme.sql", import.meta.url), "utf8"));
   const mod = await staffToken(env, [ROLE_MOD]);
   const list = (await (await call(env, "/api/penalties", { token: mod })).json()).penalties;
@@ -736,7 +736,7 @@ test("barème proposé (seed-bareme.sql) : tous les cas et paliers sont valides"
     for (const s of p.steps) if (s.type === "ban_temp") assert.ok(s.detail, `${p.name} : durée du ban temporaire`);
   }
   // le barème proposé ne passe que par des étapes que l'API sait aussi enregistrer
-  const admin = await staffToken(env, [ROLE_ADMIN]);
+  const admin = await staffToken(env, [ROLE_MANAGER]);
   for (const p of list) assert.equal((await send(env, "/api/penalties", admin, "POST", { cat: p.cat, name: p.name + " (copie)", notes: p.notes, steps: p.steps })).status, 201, p.name);
 });
 
@@ -794,12 +794,13 @@ test("support : suffit à lui seul à configurer le panel", async () => {
 });
 
 test("support : lit le barème, les commandes et l'organigramme, mais ne peut rien écrire", async () => {
-  const env = supportEnv();
-  const admin = await staffToken(env, [ROLE_ADMIN], { userId: "888888888888888888" });
+  const env = levelsEnv();
+  const founder = await staffToken(env, [ROLE_FOUNDER], { userId: "888888888888888888" });
+  const manager = await staffToken(env, [ROLE_MANAGER], { userId: "777777777777777777" });
   const sup = await staffToken(env, [ROLE_SUPPORT]);
-  await send(env, "/api/commands", admin, "POST", cmdBody());
-  await send(env, "/api/org", admin, "POST", memberBody());
-  await send(env, "/api/penalties", admin, "POST", penaltyBody());
+  await send(env, "/api/commands", founder, "POST", cmdBody());
+  await send(env, "/api/org", manager, "POST", memberBody());
+  await send(env, "/api/penalties", manager, "POST", penaltyBody());
 
   assert.equal((await (await call(env, "/api/commands", { token: sup })).json()).commands.length, 1);
   assert.equal((await (await call(env, "/api/org", { token: sup })).json()).org.length, 1);
@@ -890,7 +891,7 @@ test("commandes : chaque niveau ne reçoit que les commandes de son niveau et de
   assert.equal(JSON.parse(await (await call(env, "/api/commands", { token: t.founder })).text()).commands.every((c) => ALL_LEVELS.includes(c.min_level)), true);
 });
 
-test("commandes : on ne crée ni ne réserve rien au-dessus de son niveau, et on ne touche pas à ce qu'on ne voit pas", async () => {
+test("commandes : seul le fondateur écrit (n'importe quel niveau de visibilité) ; administration, managers, modération et support ne peuvent rien modifier", async () => {
   const env = levelsEnv();
   addRow(env, "fivem", "/pour-responsable", "manager");
   addRow(env, "fivem", "/pour-fondateur", "founder");
@@ -898,33 +899,27 @@ test("commandes : on ne crée ni ne réserve rien au-dessus de son niveau, et on
   const ids = Object.fromEntries(env.DB.raw.prepare("SELECT id, cmd FROM commands").all().map((r) => [r.cmd, r.id]));
   const t = await tokens(env);
   const body = (over = {}) => cmdBody({ min_level: "admin", ...over });
+  const before = env.DB.raw.prepare("SELECT COUNT(*) AS n FROM commands").get().n;
 
-  // un administrateur
-  assert.equal((await send(env, "/api/commands", t.admin, "POST", body({ min_level: "manager" }))).status, 403, "pas de commande réservée au-dessus de soi");
-  assert.equal((await send(env, "/api/commands", t.admin, "POST", body({ min_level: "admin", cmd: "/ok-admin" }))).status, 201);
-  assert.equal((await send(env, "/api/commands", t.admin, "POST", body({ min_level: "mod", cmd: "/ok-mod" }))).status, 201);
-  assert.equal((await send(env, `/api/commands/${ids["/pour-responsable"]}`, t.admin, "PUT", body({ cmd: "/piraté" }))).status, 404, "modifier une commande qu'il ne voit pas");
-  assert.equal((await send(env, `/api/commands/${ids["/pour-fondateur"]}`, t.admin, "DELETE")).status, 404, "supprimer une commande qu'il ne voit pas");
-  assert.equal((await send(env, `/api/commands/${ids["/pour-admin"]}`, t.admin, "PUT", body({ cmd: "/pour-admin", min_level: "founder" }))).status, 403, "pas d'élévation vers un niveau supérieur");
-  assert.equal((await send(env, `/api/commands/${ids["/pour-admin"]}`, t.admin, "PUT", body({ cmd: "/pour-admin-2", min_level: "mod" }))).status, 200, "abaisser la visibilité est permis");
-  assert.equal(env.DB.raw.prepare("SELECT cmd FROM commands WHERE id = ?").get(ids["/pour-responsable"]).cmd, "/pour-responsable", "rien n'a changé");
-  assert.ok(env.DB.raw.prepare("SELECT id FROM commands WHERE id = ?").get(ids["/pour-fondateur"]), "rien n'a été supprimé");
+  // personne d'autre que le fondateur : ni ajout, ni modification, ni suppression
+  for (const lvl of ["admin", "manager", "mod", "support"]) {
+    assert.equal((await send(env, "/api/commands", t[lvl], "POST", body({ cmd: "/x" }))).status, 403, `${lvl} : ajout`);
+    assert.equal((await send(env, `/api/commands/${ids["/pour-admin"]}`, t[lvl], "PUT", body({ cmd: "/piraté" }))).status, 403, `${lvl} : modification`);
+    assert.equal((await send(env, `/api/commands/${ids["/pour-admin"]}`, t[lvl], "DELETE")).status, 403, `${lvl} : suppression`);
+  }
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM commands").get().n, before, "rien n'a été ajouté ni supprimé");
+  assert.equal(env.DB.raw.prepare("SELECT cmd FROM commands WHERE id = ?").get(ids["/pour-admin"]).cmd, "/pour-admin", "rien n'a été renommé");
 
-  // un responsable gère les niveaux jusqu'au sien, pas au-dessus
-  assert.equal((await send(env, `/api/commands/${ids["/pour-responsable"]}`, t.manager, "PUT", body({ cmd: "/pour-responsable", min_level: "manager" }))).status, 200);
-  assert.equal((await send(env, `/api/commands/${ids["/pour-fondateur"]}`, t.manager, "DELETE")).status, 404);
-  // le fondateur gère tout
+  // le fondateur gère tout, y compris les commandes réservées aux niveaux supérieurs
   assert.equal((await send(env, "/api/commands", t.founder, "POST", body({ min_level: "founder", cmd: "/ok-fondateur" }))).status, 201);
+  assert.equal((await send(env, "/api/commands", t.founder, "POST", body({ min_level: "manager", cmd: "/ok-responsable" }))).status, 201);
+  assert.equal((await send(env, `/api/commands/${ids["/pour-responsable"]}`, t.founder, "PUT", body({ cmd: "/pour-responsable", min_level: "founder" }))).status, 200);
   assert.equal((await send(env, `/api/commands/${ids["/pour-fondateur"]}`, t.founder, "DELETE")).status, 200);
 
   // validation du niveau
   assert.equal((await send(env, "/api/commands", t.founder, "POST", body({ min_level: "roi" }))).status, 400);
   assert.equal((await send(env, "/api/commands", t.founder, "POST", { ...body(), min_level: undefined, cmd: "/defaut" })).status, 201);
   assert.equal(env.DB.raw.prepare("SELECT min_level FROM commands WHERE cmd = '/defaut'").get().min_level, "support", "niveau par défaut : tout le staff");
-
-  // modération et support ne peuvent rien écrire
-  assert.equal((await send(env, "/api/commands", t.mod, "POST", body({ min_level: "mod" }))).status, 403);
-  assert.equal((await send(env, "/api/commands", t.support, "POST", body({ min_level: "support" }))).status, 403);
 });
 
 test("commandes : le journal d'activité ne révèle pas le nom d'une commande réservée aux niveaux supérieurs à l'administration", async () => {
@@ -932,8 +927,8 @@ test("commandes : le journal d'activité ne révèle pas le nom d'une commande r
   const t = await tokens(env);
   const post = (token, cmd, level) => send(env, "/api/commands", token, "POST", cmdBody({ cmd, min_level: level }));
   const { id: secretId } = await (await post(t.founder, "/commande-secrete-fondateur", "founder")).json();
-  await post(t.manager, "/commande-secrete-responsable", "manager");
-  await post(t.admin, "/commande-visible-admin", "admin");
+  await post(t.founder, "/commande-secrete-responsable", "manager");
+  await post(t.founder, "/commande-visible-admin", "admin");
   await send(env, `/api/commands/${secretId}`, t.founder, "PUT", cmdBody({ cmd: "/commande-secrete-renommee", min_level: "founder" }));
   await send(env, `/api/commands/${secretId}`, t.founder, "DELETE");
 
@@ -944,19 +939,45 @@ test("commandes : le journal d'activité ne révèle pas le nom d'une commande r
   assert.ok(text.includes("/commande-visible-admin"), "une commande de niveau administration reste nommée");
 });
 
-test("niveaux : responsable et fondateur gardent les droits d'administration partout ailleurs", async () => {
+test("droits : qui peut modifier quoi (commandes et règlement : fondateur ; organigramme et barème : managers et fondateur) ; le panel lit ces droits sur /api/me", async () => {
   const env = levelsEnv();
   const t = await tokens(env);
-  for (const lvl of ["manager", "founder"]) {
-    assert.equal((await send(env, "/api/penalties", t[lvl], "POST", penaltyBody({ name: `Barème ${lvl}` }))).status, 201, `${lvl} : barème`);
-    assert.equal((await send(env, "/api/org", t[lvl], "POST", memberBody({ name: `Membre ${lvl}` }))).status, 201, `${lvl} : organigramme`);
+  const WANT = { commands: "founder", org: "manager", bareme: "manager", rules: "founder" };
+  const LV = { support: 1, mod: 2, admin: 3, manager: 4, founder: 5 };
+  for (const lvl of ALL_LEVELS) assert.deepEqual((await (await call(env, "/api/me", { token: t[lvl] })).json()).perms, WANT, `${lvl} : droits annoncés au panel`);
+  let i = 0;
+  const attempts = {
+    commands: (tok) => send(env, "/api/commands", tok, "POST", cmdBody({ cmd: `/c${++i}` })),
+    org: (tok) => send(env, "/api/org", tok, "POST", memberBody({ name: `Membre ${++i}` })),
+    bareme: (tok) => send(env, "/api/rules-bareme", tok, "PUT", { intro: `Introduction ${++i}` }),
+    rules: (tok) => send(env, "/api/rule-chapters", tok, "POST", { title: `Chapitre ${++i}` }),
+  };
+  for (const [what, doit] of Object.entries(attempts)) {
+    for (const lvl of ALL_LEVELS) {
+      const res = await doit(t[lvl]);
+      const allowed = LV[lvl] >= LV[WANT[what]];
+      assert.equal(res.status < 300, allowed, `${what} par ${lvl} : ${res.status}`);
+      if (!allowed) assert.equal(res.status, 403, `${what} par ${lvl}`);
+    }
+  }
+  // le règlement se lit à partir du niveau qui peut modifier le barème (le panel y charge le barème et les numéros de règles)
+  for (const lvl of ["support", "mod", "admin"]) assert.equal((await call(env, "/api/rules", { token: t[lvl] })).status, 403, `${lvl} : lecture du règlement côté panel`);
+  for (const lvl of ["manager", "founder"]) assert.equal((await call(env, "/api/rules", { token: t[lvl] })).status, 200, `${lvl} : lecture du règlement côté panel`);
+  // les droits qui ne changent pas : journal d'activité (administration et au-dessus), journal des sanctions (modération et au-dessus)
+  for (const lvl of ["admin", "manager", "founder"]) {
     assert.equal((await call(env, "/api/audit", { token: t[lvl] })).status, 200, `${lvl} : journal d'activité`);
     assert.equal((await call(env, "/api/sanctions", { token: t[lvl] })).status, 200, `${lvl} : journal des sanctions`);
     assert.equal((await send(env, "/api/sanctions", t[lvl], "POST", sanction())).status, 201, `${lvl} : ajout au journal`);
   }
-  // et les niveaux inférieurs restent bornés
   assert.equal((await call(env, "/api/audit", { token: t.mod })).status, 403);
   assert.equal((await call(env, "/api/sanctions", { token: t.support })).status, 403);
+  // l'administration garde la suppression d'une sanction ; la modération non
+  const sid = env.DB.raw.prepare("SELECT id FROM sanctions LIMIT 1").get().id;
+  assert.equal((await send(env, `/api/sanctions/${sid}`, t.mod, "DELETE")).status, 403);
+  assert.equal((await send(env, `/api/sanctions/${sid}`, t.admin, "DELETE")).status, 200);
+  // chaque modification autorisée est journalisée sous le nom de la personne
+  const log = (await (await call(env, "/api/audit", { token: t.founder })).json()).audit.map((a) => a.action);
+  for (const a of ["commande ajoutée", "organigramme : membre ajouté", "règlement : barème indicatif modifié", "règlement : chapitre ajouté"]) assert.ok(log.includes(a), a + " : " + log.join(" | "));
 });
 
 test("migration des niveaux : sans commentaire, conserve les commandes d'une ancienne base et leur donne le niveau par défaut", () => {
@@ -1006,7 +1027,7 @@ test("règlement : la migration est sans commentaire et donne la même structure
   }
 });
 
-test("règlement : il faut être connecté, et être manager ou fondateur pour le gérer", async () => {
+test("règlement : il faut être connecté ; les managers lisent et gèrent le barème mais seul le fondateur modifie les règles et chapitres", async () => {
   const env = rulesEnv();
   const t = await tokens(env);
   assert.equal((await call(env, "/api/rules")).status, 401);
@@ -1017,6 +1038,12 @@ test("règlement : il faut être connecté, et être manager ou fondateur pour l
   }
   assert.equal((await call(env, "/api/rules", { token: t.manager })).status, 200);
   assert.equal((await call(env, "/api/rules", { token: t.founder })).status, 200);
+  // un manager ne modifie ni règle, ni chapitre, ni ordre ; il modifie le barème
+  for (const [path, method, body] of [["/api/rules", "POST", { chapter_id: 1, title: "x" }], ["/api/rule-chapters", "POST", { title: "x" }], ["/api/rules/order", "PUT", { chapter_id: 1, ids: [] }], ["/api/rule-chapters/order", "PUT", { ids: [] }], ["/api/rules/1", "PUT", { title: "x" }], ["/api/rules/1", "DELETE"], ["/api/rule-chapters/1", "DELETE"]]) {
+    assert.equal((await send(env, path, t.manager, method, body)).status, 403, `manager ${method} ${path}`);
+  }
+  assert.equal((await send(env, "/api/rules-bareme", t.manager, "PUT", { intro: "Indicatif." })).status, 200, "un manager modifie le barème");
+  assert.equal((await send(env, "/api/rules-bareme", t.admin, "PUT", { intro: "x" })).status, 403, "pas l'administration");
   // l'import (remplace tout) est réservé au fondateur
   assert.equal((await send(env, "/api/rules/import", t.manager, "POST", { mode: "reset" })).status, 403);
   assert.equal((await send(env, "/api/rules/import", t.admin, "POST", { mode: "reset" })).status, 403);
@@ -1073,7 +1100,7 @@ test("règlement : la lecture publique ne montre que le publié, sans identifian
   await importRules(env, t.founder);
   const staff = await getRules(env, t.manager);
   const [respect, pseudo] = staff.chapters[0].rules;
-  await send(env, `/api/rules/${pseudo.id}`, t.manager, "PUT", { published: false });
+  await send(env, `/api/rules/${pseudo.id}`, t.founder, "PUT", { published: false });
   const out = await getPublic(env);
   assert.equal(out.r.status, 200);
   assert.equal(out.r.headers.get("access-control-allow-origin"), "*");
@@ -1084,7 +1111,7 @@ test("règlement : la lecture publique ne montre que le publié, sans identifian
   assert.equal(out.data.chapters[0].rules[0].important, false);
   assert.ok(out.data.updated && !isNaN(Date.parse(out.data.updated)));
   // chapitre dépublié : il disparaît avec ses règles
-  await send(env, `/api/rule-chapters/${staff.chapters[1].id}`, t.manager, "PUT", { published: false });
+  await send(env, `/api/rule-chapters/${staff.chapters[1].id}`, t.founder, "PUT", { published: false });
   assert.deepEqual((await getPublic(env)).data.chapters.map((c) => c.title), ["Règlement général"]);
   // et la lecture publique est possible sans connexion, depuis n'importe quel site
   const anon = await call(env, "/api/public/rules", { origin: "https://autre-site.example" });
@@ -1102,7 +1129,7 @@ test("règlement : ajouter, modifier, supprimer une règle, avec contrôle des c
   await importRules(env, t.founder);
   let data = await getRules(env, t.manager);
   const ch = data.chapters[0].id;
-  const add = await send(env, "/api/rules", t.manager, "POST", { chapter_id: ch, title: "  Nouvelle   règle ", body: "Ligne 1\n\n\n\nLigne 2", important: true });
+  const add = await send(env, "/api/rules", t.founder, "POST", { chapter_id: ch, title: "  Nouvelle   règle ", body: "Ligne 1\n\n\n\nLigne 2", important: true });
   assert.equal(add.status, 201);
   const id = (await add.json()).id;
   data = await getRules(env, t.manager);
@@ -1110,26 +1137,26 @@ test("règlement : ajouter, modifier, supprimer une règle, avec contrôle des c
   assert.deepEqual([created.id, created.title, created.body, created.published, created.important, created.updated_by], [id, "Nouvelle règle", "Ligne 1\n\nLigne 2", true, true, "Jaguuar_"]);
   assert.deepEqual(ruleNames(data, 0), ["Respect", "Pseudo", "Nouvelle règle"], "ajoutée en fin de chapitre");
   // modification du texte seulement : le reste ne bouge pas
-  assert.equal((await send(env, `/api/rules/${id}`, t.manager, "PUT", { body: "Texte modifié." })).status, 200);
+  assert.equal((await send(env, `/api/rules/${id}`, t.founder, "PUT", { body: "Texte modifié." })).status, 200);
   const edited = (await getRules(env, t.manager)).chapters[0].rules.at(-1);
   assert.deepEqual([edited.title, edited.body, edited.important, edited.published], ["Nouvelle règle", "Texte modifié.", true, true]);
   // validations
   for (const [body, label] of [[{ chapter_id: ch, title: "" }, "titre vide"], [{ chapter_id: ch, title: "   " }, "titre blanc"], [{ title: "x" }, "sans chapitre"], [{ chapter_id: "abc", title: "x" }, "chapitre invalide"], [{ chapter_id: ch, title: "x", published: "oui" }, "booléen invalide"], [{ chapter_id: ch, title: "x", important: 2 }, "booléen invalide 2"]]) {
-    assert.equal((await send(env, "/api/rules", t.manager, "POST", body)).status, 400, label);
+    assert.equal((await send(env, "/api/rules", t.founder, "POST", body)).status, 400, label);
   }
-  assert.equal((await send(env, "/api/rules", t.manager, "POST", { chapter_id: 99999, title: "x" })).status, 404);
-  assert.equal((await send(env, `/api/rules/${id}`, t.manager, "PUT", { title: "" })).status, 400);
-  assert.equal((await send(env, "/api/rules/99999", t.manager, "PUT", { title: "x" })).status, 404);
-  assert.equal((await send(env, "/api/rules/99999", t.manager, "DELETE")).status, 404);
-  const long = await send(env, "/api/rules", t.manager, "POST", { chapter_id: ch, title: "T".repeat(500), body: "x".repeat(9000) });
+  assert.equal((await send(env, "/api/rules", t.founder, "POST", { chapter_id: 99999, title: "x" })).status, 404);
+  assert.equal((await send(env, `/api/rules/${id}`, t.founder, "PUT", { title: "" })).status, 400);
+  assert.equal((await send(env, "/api/rules/99999", t.founder, "PUT", { title: "x" })).status, 404);
+  assert.equal((await send(env, "/api/rules/99999", t.founder, "DELETE")).status, 404);
+  const long = await send(env, "/api/rules", t.founder, "POST", { chapter_id: ch, title: "T".repeat(500), body: "x".repeat(9000) });
   assert.equal(long.status, 201);
   const l = (await getRules(env, t.manager)).chapters[0].rules.at(-1);
   assert.equal(l.title.length, 160); assert.equal(l.body.length, 6000);
   const huge = JSON.stringify({ chapter_id: ch, title: "x", body: "y".repeat(40000) });
-  const tooBig = await panel.fetch(new Request(`${W}/api/rules`, { method: "POST", headers: { authorization: `Bearer ${t.manager}`, origin: SITE, "content-type": "application/json", "content-length": String(huge.length) }, body: huge }), env);
+  const tooBig = await panel.fetch(new Request(`${W}/api/rules`, { method: "POST", headers: { authorization: `Bearer ${t.founder}`, origin: SITE, "content-type": "application/json", "content-length": String(huge.length) }, body: huge }), env);
   assert.equal(tooBig.status, 413);
   // suppression
-  assert.equal((await send(env, `/api/rules/${id}`, t.manager, "DELETE")).status, 200);
+  assert.equal((await send(env, `/api/rules/${id}`, t.founder, "DELETE")).status, 200);
   assert.ok(!ruleNames(await getRules(env, t.manager), 0).includes("Nouvelle règle"));
 });
 
@@ -1138,14 +1165,14 @@ test("règlement : publier, dépublier et mettre en avant sans renvoyer le texte
   const t = await tokens(env);
   await importRules(env, t.founder);
   const r = (await getRules(env, t.manager)).chapters[0].rules[0];
-  assert.equal((await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { published: false })).status, 200);
+  assert.equal((await send(env, `/api/rules/${r.id}`, t.founder, "PUT", { published: false })).status, 200);
   assert.equal((await getPublic(env)).data.chapters[0].rules.length, 1);
-  assert.equal((await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { published: true, important: true })).status, 200);
+  assert.equal((await send(env, `/api/rules/${r.id}`, t.founder, "PUT", { published: true, important: true })).status, 200);
   const after = (await getPublic(env)).data.chapters[0].rules[0];
   assert.deepEqual([after.title, after.important, after.body], ["Respect", true, "Soyez respectueux.\n* point A\n* point B"]);
   const actions = env.DB.raw.prepare("SELECT action FROM audit WHERE action LIKE 'règlement : règle %' ORDER BY id").all().map((a) => a.action);
   assert.deepEqual(actions, ["règlement : règle dépubliée", "règlement : règle publiée"]);
-  await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { important: false });
+  await send(env, `/api/rules/${r.id}`, t.founder, "PUT", { important: false });
   assert.equal(env.DB.raw.prepare("SELECT action FROM audit WHERE action LIKE 'règlement : règle %' ORDER BY id DESC LIMIT 1").get().action, "règlement : règle retirée des règles importantes");
 });
 
@@ -1156,29 +1183,29 @@ test("règlement : déplacer vers un autre chapitre et réordonner règles et ch
   let data = await getRules(env, t.manager);
   const [c1, c2] = data.chapters, [respect, pseudo] = c1.rules, [conso] = c2.rules;
   // réordonner dans le chapitre 1
-  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c1.id, ids: [pseudo.id, respect.id] })).status, 200);
+  assert.equal((await send(env, "/api/rules/order", t.founder, "PUT", { chapter_id: c1.id, ids: [pseudo.id, respect.id] })).status, 200);
   assert.deepEqual(ruleNames(await getRules(env, t.manager), 0), ["Pseudo", "Respect"]);
   // déplacer « Pseudo » dans le chapitre 2, entre les deux (liste complète du chapitre d'arrivée)
-  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [conso.id, pseudo.id] })).status, 200);
+  assert.equal((await send(env, "/api/rules/order", t.founder, "PUT", { chapter_id: c2.id, ids: [conso.id, pseudo.id] })).status, 200);
   data = await getRules(env, t.manager);
   assert.deepEqual(ruleNames(data, 0), ["Respect"]); assert.deepEqual(ruleNames(data, 1), ["Consentement", "Pseudo"]);
   assert.equal(data.chapters[1].rules[1].chapter_id, c2.id);
   // une liste incomplète (page pas à jour) est refusée, rien ne change
-  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [pseudo.id] })).status, 409);
-  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [conso.id, pseudo.id, 99999] })).status, 409);
-  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: c2.id, ids: [conso.id, conso.id] })).status, 400);
-  assert.equal((await send(env, "/api/rules/order", t.manager, "PUT", { chapter_id: 99999, ids: [] })).status, 404);
+  assert.equal((await send(env, "/api/rules/order", t.founder, "PUT", { chapter_id: c2.id, ids: [pseudo.id] })).status, 409);
+  assert.equal((await send(env, "/api/rules/order", t.founder, "PUT", { chapter_id: c2.id, ids: [conso.id, pseudo.id, 99999] })).status, 409);
+  assert.equal((await send(env, "/api/rules/order", t.founder, "PUT", { chapter_id: c2.id, ids: [conso.id, conso.id] })).status, 400);
+  assert.equal((await send(env, "/api/rules/order", t.founder, "PUT", { chapter_id: 99999, ids: [] })).status, 404);
   assert.deepEqual(ruleNames(await getRules(env, t.manager), 1), ["Consentement", "Pseudo"]);
   // déplacement par modification (menu « Chapitre » de l'éditeur) : en fin de chapitre
-  assert.equal((await send(env, `/api/rules/${respect.id}`, t.manager, "PUT", { chapter_id: c2.id })).status, 200);
+  assert.equal((await send(env, `/api/rules/${respect.id}`, t.founder, "PUT", { chapter_id: c2.id })).status, 200);
   data = await getRules(env, t.manager);
   assert.deepEqual(ruleNames(data, 0), []); assert.deepEqual(ruleNames(data, 1), ["Consentement", "Pseudo", "Respect"]);
-  assert.equal((await send(env, `/api/rules/${respect.id}`, t.manager, "PUT", { chapter_id: 99999 })).status, 404);
+  assert.equal((await send(env, `/api/rules/${respect.id}`, t.founder, "PUT", { chapter_id: 99999 })).status, 404);
   // chapitres
-  assert.equal((await send(env, "/api/rule-chapters/order", t.manager, "PUT", { ids: [c2.id, c1.id] })).status, 200);
+  assert.equal((await send(env, "/api/rule-chapters/order", t.founder, "PUT", { ids: [c2.id, c1.id] })).status, 200);
   assert.deepEqual((await getRules(env, t.manager)).chapters.map((c) => c.title), ["Scènes", "Règlement général"]);
-  assert.equal((await send(env, "/api/rule-chapters/order", t.manager, "PUT", { ids: [c2.id] })).status, 409);
-  assert.equal((await send(env, "/api/rule-chapters/order", t.manager, "PUT", { ids: [c2.id, c2.id] })).status, 409);
+  assert.equal((await send(env, "/api/rule-chapters/order", t.founder, "PUT", { ids: [c2.id] })).status, 409);
+  assert.equal((await send(env, "/api/rule-chapters/order", t.founder, "PUT", { ids: [c2.id, c2.id] })).status, 409);
   assert.deepEqual((await getPublic(env)).data.chapters.map((c) => c.title), ["Scènes", "Règlement général"]);
 });
 
@@ -1186,21 +1213,21 @@ test("règlement : créer, modifier et supprimer un chapitre (un chapitre non vi
   const env = rulesEnv();
   const t = await tokens(env);
   await importRules(env, t.founder);
-  const add = await send(env, "/api/rule-chapters", t.manager, "POST", { title: "  Charte Whitelist ", intro: "Bienvenue", numbered: false });
+  const add = await send(env, "/api/rule-chapters", t.founder, "POST", { title: "  Charte Whitelist ", intro: "Bienvenue", numbered: false });
   assert.equal(add.status, 201);
   const id = (await add.json()).id;
   let data = await getRules(env, t.manager);
   const c = data.chapters.at(-1);
   assert.deepEqual([c.id, c.title, c.intro, c.numbered, c.published, c.rules.length], [id, "Charte Whitelist", "Bienvenue", false, true, 0]);
-  assert.equal((await send(env, "/api/rule-chapters", t.manager, "POST", { title: "" })).status, 400);
-  assert.equal((await send(env, "/api/rule-chapters", t.manager, "POST", { title: "x", numbered: "non" })).status, 400);
-  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.manager, "PUT", { title: "Charte" })).status, 200);
+  assert.equal((await send(env, "/api/rule-chapters", t.founder, "POST", { title: "" })).status, 400);
+  assert.equal((await send(env, "/api/rule-chapters", t.founder, "POST", { title: "x", numbered: "non" })).status, 400);
+  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.founder, "PUT", { title: "Charte" })).status, 200);
   data = await getRules(env, t.manager);
   assert.deepEqual([data.chapters.at(-1).title, data.chapters.at(-1).intro], ["Charte", "Bienvenue"], "le reste est conservé");
-  assert.equal((await send(env, `/api/rule-chapters/${data.chapters[0].id}`, t.manager, "DELETE")).status, 409, "chapitre non vide");
-  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.manager, "DELETE")).status, 200);
-  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.manager, "DELETE")).status, 404);
-  assert.equal((await send(env, "/api/rule-chapters/99999", t.manager, "PUT", { title: "x" })).status, 404);
+  assert.equal((await send(env, `/api/rule-chapters/${data.chapters[0].id}`, t.founder, "DELETE")).status, 409, "chapitre non vide");
+  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.founder, "DELETE")).status, 200);
+  assert.equal((await send(env, `/api/rule-chapters/${id}`, t.founder, "DELETE")).status, 404);
+  assert.equal((await send(env, "/api/rule-chapters/99999", t.founder, "PUT", { title: "x" })).status, 404);
 });
 
 test("règlement : la date de mise à jour ne bouge que pour un changement visible sur le site", async () => {
@@ -1209,13 +1236,13 @@ test("règlement : la date de mise à jour ne bouge que pour un changement visib
   await importRules(env, t.founder);
   const first = (await getPublic(env)).data.updated;
   env.DB.raw.prepare("UPDATE rules_meta SET v = '2020-01-01T00:00:00.000Z' WHERE k = 'updated_at'").run();
-  const draft = (await send(env, "/api/rules", t.manager, "POST", { chapter_id: (await getRules(env, t.manager)).chapters[0].id, title: "Brouillon", published: false }));
+  const draft = (await send(env, "/api/rules", t.founder, "POST", { chapter_id: (await getRules(env, t.manager)).chapters[0].id, title: "Brouillon", published: false }));
   const draftId = (await draft.json()).id;
-  await send(env, `/api/rules/${draftId}`, t.manager, "PUT", { body: "encore brouillon" });
-  await send(env, `/api/rules/${draftId}`, t.manager, "DELETE");
+  await send(env, `/api/rules/${draftId}`, t.founder, "PUT", { body: "encore brouillon" });
+  await send(env, `/api/rules/${draftId}`, t.founder, "DELETE");
   assert.equal((await getPublic(env)).data.updated, "2020-01-01T00:00:00.000Z", "brouillons : date inchangée");
   const r = (await getRules(env, t.manager)).chapters[0].rules[0];
-  await send(env, `/api/rules/${r.id}`, t.manager, "PUT", { body: "Visible." });
+  await send(env, `/api/rules/${r.id}`, t.founder, "PUT", { body: "Visible." });
   assert.ok((await getPublic(env)).data.updated > first.slice(0, 4), "texte publié modifié : date mise à jour");
   assert.notEqual((await getPublic(env)).data.updated, "2020-01-01T00:00:00.000Z");
 });
@@ -1246,11 +1273,11 @@ test("règlement : le texte saisi reste du texte (rien n'est interprété) et ch
   await importRules(env, t.founder);
   const ch = (await getRules(env, t.manager)).chapters[0].id;
   const evil = `<img src=x onerror=alert(1)><script>alert(2)</script> ' OR 1=1 --`;
-  const id = (await (await send(env, "/api/rules", t.manager, "POST", { chapter_id: ch, title: evil, body: evil })).json()).id;
+  const id = (await (await send(env, "/api/rules", t.founder, "POST", { chapter_id: ch, title: evil, body: evil })).json()).id;
   const back = (await getPublic(env)).data.chapters[0].rules.at(-1);
   assert.equal(back.title, evil); assert.equal(back.body, evil);
   assert.match((await call(env, "/api/public/rules")).headers.get("content-type"), /^application\/json/);
-  await send(env, `/api/rules/${id}`, t.manager, "DELETE");
+  await send(env, `/api/rules/${id}`, t.founder, "DELETE");
   const log = env.DB.raw.prepare("SELECT action, staff_name FROM audit WHERE action LIKE 'règlement%' ORDER BY id").all().map((a) => a.action);
   assert.ok(log.includes("règlement : règle ajoutée") && log.includes("règlement : règle supprimée") && log.includes("règlement : import terminé"), log.join(" | "));
 });
@@ -1311,7 +1338,7 @@ test("équipe publique : seules les personnes placées dans l'arbre, sans aucun 
   const env = teamEnv();
   const t = await tokens(env);
   assert.deepEqual((await getTeam(env)).data, { members: [] }, "organigramme vide");
-  const add = async (name, kind, position = 0, role = "") => (await (await send(env, "/api/org", t.admin, "POST", { name, kind, position, role })).json()).id;
+  const add = async (name, kind, position = 0, role = "") => (await (await send(env, "/api/org", t.manager, "POST", { name, kind, position, role })).json()).id;
   const idFounder = await add("Jaguuar_", "founder", 0, "Fondateur · Développeur");
   const idMod = await add("Moncef", "mod_rp", 1);
   const idAdm = await add("Isar", "adm_legal", 0);
@@ -1341,13 +1368,13 @@ test("équipe publique : seules les personnes placées dans l'arbre, sans aucun 
 test("équipe publique : un déplacement dans le panel se retrouve aussitôt dans la réponse publique", async () => {
   const env = teamEnv();
   const t = await tokens(env);
-  const id = (await (await send(env, "/api/org", t.admin, "POST", { name: "Moncef", kind: "other" })).json()).id;
+  const id = (await (await send(env, "/api/org", t.manager, "POST", { name: "Moncef", kind: "other" })).json()).id;
   assert.deepEqual((await getTeam(env)).data.members, [], "à placer : pas public");
-  assert.equal((await send(env, `/api/org/${id}`, t.admin, "PUT", { name: "Moncef", kind: "mod_legal", position: 0 })).status, 200);
+  assert.equal((await send(env, `/api/org/${id}`, t.manager, "PUT", { name: "Moncef", kind: "mod_legal", position: 0 })).status, 200);
   assert.deepEqual((await getTeam(env)).data.members.map((m) => [m.name, m.key]), [["Moncef", "mod_legal"]]);
-  assert.equal((await send(env, `/api/org/${id}`, t.admin, "PUT", { name: "Moncef", kind: "adm_rp", position: 0 })).status, 200);
+  assert.equal((await send(env, `/api/org/${id}`, t.manager, "PUT", { name: "Moncef", kind: "adm_rp", position: 0 })).status, 200);
   assert.deepEqual((await getTeam(env)).data.members.map((m) => [m.name, m.key]), [["Moncef", "adm_rp"]], "déplacé dans une autre case");
-  assert.equal((await send(env, `/api/org/${id}`, t.admin, "PUT", { name: "Moncef", kind: "other", position: 0 })).status, 200);
+  assert.equal((await send(env, `/api/org/${id}`, t.manager, "PUT", { name: "Moncef", kind: "other", position: 0 })).status, 200);
   assert.deepEqual((await getTeam(env)).data.members, [], "remis dans « À placer » : retiré du site");
 });
 
@@ -1364,7 +1391,7 @@ test("équipe publique : une ancienne base (sans colonnes Discord) ou sans table
 test("photos publiques : relayées depuis Discord pour les personnes placées ; rien pour les autres", async () => {
   const env = teamEnv();
   const t = await tokens(env);
-  const add = async (name, kind) => (await (await send(env, "/api/org", t.admin, "POST", { name, kind })).json()).id;
+  const add = async (name, kind) => (await (await send(env, "/api/org", t.manager, "POST", { name, kind })).json()).id;
   const placed = await add("Isar", "adm_legal"), tray = await add("Réserve", "other"), noPhoto = await add("Sans photo", "mod_rp");
   env.DB.raw.prepare("UPDATE org SET discord_id = '123456789012345678', avatar = 'abc123' WHERE id IN (?, ?)").run(placed, tray);
   const original = globalThis.fetch, calls = [];

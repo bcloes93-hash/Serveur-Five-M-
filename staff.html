@@ -92,9 +92,9 @@
                 <button class="tabs__tab" type="button" role="tab" id="stab-sanctions" aria-controls="view-sanctions" aria-selected="false" tabindex="-1" data-view="sanctions">Sanctions</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-commands" aria-controls="view-commands" aria-selected="false" tabindex="-1" data-view="commands">Commandes</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-org" aria-controls="view-org" aria-selected="false" tabindex="-1" data-view="org">Organigramme</button>
-                <button class="tabs__tab" type="button" role="tab" id="stab-rules" aria-controls="view-rules" aria-selected="false" tabindex="-1" data-view="rules" data-manager hidden>Règlement</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-audit" aria-controls="view-audit" aria-selected="false" tabindex="-1" data-view="audit" data-admin hidden>Activité</button>
                 <button class="tabs__tab" type="button" role="tab" id="stab-server" aria-selected="false" tabindex="-1" disabled>Serveur <small>(bientôt)</small></button>
+                <button class="tabs__tab tabs__tab--sep" type="button" role="tab" id="stab-edit" aria-controls="view-edit" aria-selected="false" tabindex="-1" data-view="edit">Modifications du site</button>
               </div>
               <button class="btn btn--ghost btn--small staff__logout" id="staff-logout" type="button">Se déconnecter</button>
               </div>
@@ -121,10 +121,10 @@
                     <p>La hiérarchie de l'équipe staff.</p>
                     <button class="btn btn--primary btn--small" type="button" data-go="org">Ouvrir</button>
                   </article>
-                  <article class="card" data-manager hidden>
-                    <h3>Règlement</h3>
-                    <p>Les chapitres et les règles publiés sur le site : texte, ordre, publication, barème indicatif.</p>
-                    <button class="btn btn--primary btn--small" type="button" data-go="rules">Ouvrir</button>
+                  <article class="card">
+                    <h3>Modifications du site</h3>
+                    <p>Ce que vous pouvez modifier (règlement, barème, organigramme, commandes) selon votre grade.</p>
+                    <button class="btn btn--primary btn--small" type="button" data-go="edit">Ouvrir</button>
                   </article>
                   <article class="card card--soon">
                     <h3>Candidatures</h3>
@@ -147,13 +147,13 @@
                   <button class="seg__btn" type="button" data-sub="journal" aria-pressed="false">Journal</button>
                 </div>
 
-                <!-- Barème des sanctions : le même que celui du site (Règlement → Barème) -->
+                <!-- Barème des sanctions : le même que celui du site (Modifications du site → Barème des sanctions) -->
                 <div id="sub-penalties">
                   <div class="panelbox">
                     <h2 class="tabpanel__title">Barème des sanctions</h2>
-                    <p class="tabpanel__lead">La sanction à appliquer pour chaque cas, selon le nombre de récidives. C'est <strong>le même barème que celui du site</strong> : il se met à jour tout seul quand il est modifié dans <em>Règlement → Barème</em> (managers et fondateur). « Noter dans le journal » reprend l'infraction dans le journal.</p>
+                    <p class="tabpanel__lead">La sanction à appliquer pour chaque cas, selon le nombre de récidives. C'est <strong>le même barème que celui du site</strong> : il se met à jour tout seul quand il est modifié dans <em>Modifications du site → Barème des sanctions</em> (managers et fondateur). « Noter dans le journal » reprend l'infraction dans le journal.</p>
                     <div class="form__actions staff__sub">
-                      <button class="btn btn--ghost btn--small" type="button" id="p-edit" data-manager hidden>Modifier le barème</button>
+                      <button class="btn btn--ghost btn--small" type="button" id="p-edit" data-can="bareme" hidden>Modifier le barème</button>
                       <a class="btn btn--ghost btn--small" href="reglement.html#bareme" target="_blank" rel="noopener">Voir sur le site</a>
                     </div>
                     <div class="field staff__search">
@@ -238,9 +238,9 @@
                   <div class="cmd__list" id="c-list"></div>
                 </div>
 
-                <div class="panelbox" data-admin hidden>
+                <div class="panelbox" data-can="commands" hidden>
                   <h2 class="tabpanel__title" id="c-form-title">Ajouter une commande</h2>
-                  <p class="tabpanel__lead">Réservé à l'administration.</p>
+                  <p class="tabpanel__lead">Réservé au fondateur.</p>
                   <form class="form" id="command-form" novalidate>
                     <div class="form__body">
                       <div class="form__row form__row--even">
@@ -296,7 +296,7 @@
                   <h2 class="tabpanel__title">Organigramme</h2>
                   <p class="tabpanel__lead">L'équipe staff au complet, du haut vers le bas, avec les pôles de chaque rang. <strong>Les personnes placées dans l'arbre sont aussi affichées sur la <a href="equipe.html" target="_blank" rel="noopener">page Équipe du site</a></strong> (nom, titre et photo Discord) : un déplacement ici s'y répercute en moins d'une minute. Les personnes de « À placer » n'y figurent pas.</p>
                   <p class="org__warn" id="org-warn" role="alert" hidden><strong>Le relais du panel n'est pas à jour.</strong> Les déplacements sont désactivés tant que la dernière version de <code>panel/worker.mjs</code> n'est pas installée : dans Cloudflare, ouvrez <em>santos-legacy-staff</em> → <em>Edit code</em>, collez le nouveau code, cliquez sur <em>Deploy</em>, puis rechargez cette page.</p>
-                  <div class="orgbar" data-admin hidden>
+                  <div class="orgbar" hidden>
                     <p class="staff__hint">Glissez une carte pour la <strong>déplacer</strong> ; maintenez <strong>Ctrl</strong> (<strong>Option</strong> sur Mac) en glissant pour la <strong>copier</strong> dans un autre pôle. Sans souris : ouvrez les outils, puis « Déplacer vers… », ou « Copier » suivi de « Coller ici ». Une même personne peut figurer dans plusieurs pôles. Ce schéma représente l'équipe : il ne change <strong>ni les rôles Discord, ni les accès au panel</strong>.</p>
                     <button class="btn btn--ghost btn--small" type="button" id="org-edit" aria-pressed="false">Afficher les outils (copier, déplacer, retirer)</button>
                   </div>
@@ -309,10 +309,10 @@
                 </div>
               </section>
 
-              <!-- Règlement (manager et fondateur) -->
-              <section id="view-rules" role="tabpanel" aria-labelledby="stab-rules" hidden>
+              <!-- Règlement et barème (ouverts depuis « Modifications du site ») : règles et chapitres = fondateur ; barème = managers et fondateur -->
+              <section id="view-rules" role="tabpanel" aria-labelledby="stab-edit" hidden>
                 <div class="seg rl__sub" role="group" aria-label="Section Règlement">
-                  <button class="seg__btn" type="button" data-rsub="rules" aria-pressed="true">Chapitres et règles</button>
+                  <button class="seg__btn" type="button" data-rsub="rules" data-can="rules" aria-pressed="true" hidden>Chapitres et règles</button>
                   <button class="seg__btn" type="button" data-rsub="bareme" aria-pressed="false">Barème indicatif</button>
                 </div>
 
@@ -487,6 +487,15 @@
                     <p class="form__status" id="rl-c-status" role="status" aria-live="polite"></p>
                   </form>
                 </dialog>
+              </section>
+
+              <!-- Modifications du site : ce que chaque grade peut modifier -->
+              <section class="panelbox" id="view-edit" role="tabpanel" aria-labelledby="stab-edit" hidden>
+                <h2 class="tabpanel__title">Modifications du site</h2>
+                <p class="tabpanel__lead" id="edit-lead"></p>
+                <p class="org__warn" id="edit-warn" role="alert" hidden><strong>Le relais du panel n'est pas à jour.</strong> Ces droits ne sont pas encore appliqués par le serveur. Dans Cloudflare, ouvrez <em>santos-legacy-staff</em> → <em>Edit code</em>, collez la dernière version de <code>panel/worker.mjs</code>, cliquez sur <em>Deploy</em>, puis rechargez cette page.</p>
+                <div class="cards staff__cards edit__cards" id="edit-cards"></div>
+                <p class="form__note staff__note">Le reste du site (page d'accueil, pages, design) ne se modifie pas depuis le panel.</p>
               </section>
 
               <!-- Activité (administration) -->

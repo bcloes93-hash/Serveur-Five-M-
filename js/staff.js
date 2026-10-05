@@ -83,18 +83,20 @@
     // sans défilement animé : la page change de hauteur, une animation en cours pourrait être interrompue).
     var main = $(".staff__main");
     var backToTop = !!main && main.getBoundingClientRect().top < 0;
+    var tabName = name === "rules" ? "edit" : name;   // le règlement et le barème s'ouvrent depuis « Modifications du site »
     tabs.forEach(function (t) {
-      var on = t.getAttribute("data-view") === name;
+      var on = t.getAttribute("data-view") === tabName;
       t.setAttribute("aria-selected", String(on));
       t.tabIndex = on ? 0 : -1;
     });
-    ["home", "sanctions", "commands", "org", "rules", "audit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
+    ["home", "sanctions", "commands", "org", "rules", "audit", "edit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
     if (backToTop) main.scrollIntoView({ block: "start", behavior: "instant" });
     if (name === "sanctions") setSub(subView);
     if (name === "commands") { loadCommands(); if (!cmdState.editing) cForm.elements.platform.value = cmdState.platform; }
     if (name === "org") loadOrg();
-    if (name === "rules") loadRules();
+    if (name === "rules") { if (!can("rules")) setRsub("bareme"); loadRules(); }
     if (name === "audit") loadAudit();
+    if (name === "edit") renderEdit();
   }
   tabs.forEach(function (t, i) {
     t.addEventListener("click", function () { go(t.getAttribute("data-view")); });
@@ -201,6 +203,10 @@
   // « Au moins ce niveau » : chaque niveau a les droits des niveaux inférieurs.
   function atLeast(level) { return !!state.me && (RANK[state.me.level] || 0) >= RANK[level]; }
   function isAdmin() { return atLeast("admin"); }
+  // Qui peut modifier quoi : le relais l'annonce (/api/me). Un relais plus ancien ne le fait pas : on garde alors les droits d'avant.
+  var LEGACY_PERMS = { commands: "admin", org: "admin", bareme: "manager", rules: "manager" };
+  function permLevel(key) { var p = state.me && state.me.perms; return (p && RANK[p[key]] ? p[key] : LEGACY_PERMS[key]); }
+  function can(key) { return atLeast(permLevel(key)); }
   // Le journal des sanctions est réservé à la modération et au-dessus (pas au support).
   function canJournal() { return atLeast("mod"); }
 
@@ -225,7 +231,7 @@
     return b;
   }
 
-  /* ---------- Barème des sanctions : le même que celui du site (Règlement → Barème) ---------- */
+  /* ---------- Barème des sanctions : le même que celui du site (Modifications du site → Barème des sanctions) ---------- */
   // Il n'y a qu'un seul barème : celui du Règlement. Cet onglet le relit à chaque ouverture (même source que la page publique :
   // le relais, ou à défaut l'instantané data/reglement.json), il n'a donc plus de liste à part à tenir à jour.
   var penState = { items: [], known: {}, error: "" };
@@ -304,7 +310,7 @@
     if (penState.error) { pCount.textContent = ""; pList.appendChild(el("p", "cmd__empty", penState.error)); return; }
     if (!penState.items.length) {
       pCount.textContent = "";
-      pList.appendChild(el("p", "cmd__empty", "Le barème du site n'a pas encore de catégories d'infractions." + (canRules() ? " Dans Règlement → Barème, appliquez le nouveau barème." : "")));
+      pList.appendChild(el("p", "cmd__empty", "Le barème du site n'a pas encore de catégories d'infractions." + (can("bareme") ? " Dans Modifications du site → Barème des sanctions, appliquez le nouveau barème." : "")));
       return;
     }
     pCount.textContent = shown.length + (shown.length > 1 ? " infractions" : " infraction");
@@ -331,11 +337,8 @@
     });
   }
   pSearch.addEventListener("input", renderPenalties);
-  // Pour le modifier : c'est dans Règlement → Barème (managers et fondateur)
-  $("#p-edit").addEventListener("click", function () {
-    go("rules");
-    var b = $('.seg__btn[data-rsub="bareme"]'); if (b) b.click();
-  });
+  // Pour le modifier : c'est dans Modifications du site → Barème des sanctions (managers et fondateur)
+  $("#p-edit").addEventListener("click", function () { go("rules"); setRsub("bareme"); });
 
   /* ---------- Sous-onglets de « Sanctions » : Barème / Journal ---------- */
   var subView = "penalties";
@@ -375,7 +378,7 @@
       ex.appendChild(el("code", null, c.example));
       li.appendChild(ex);
     }
-    if (isAdmin()) {
+    if (can("commands")) {
       var admin = el("div", "cmd__admin");
       if (c.min_level && c.min_level !== "support") admin.appendChild(el("span", "cmd__level", "Visible : " + (VISIBLE_FROM[c.min_level] || c.min_level)));
       admin.appendChild(linkButton("Modifier", function () { startEditCommand(c); }));
@@ -424,7 +427,7 @@
     clear(cList);
     if (!all.length) {
       cCount.textContent = "";
-      cList.appendChild(el("p", "cmd__empty", isAdmin() ? "Aucune commande pour le moment. Ajoutez-en avec le formulaire ci-dessous." : "Aucune commande pour le moment."));
+      cList.appendChild(el("p", "cmd__empty", can("commands") ? "Aucune commande pour le moment. Ajoutez-en avec le formulaire ci-dessous." : "Aucune commande pour le moment."));
       return;
     }
     cCount.textContent = shown.length + (shown.length > 1 ? " commandes" : " commande") + (sub.active !== "*" ? " dans « " + catLabel(sub.active) + " »" : "");
@@ -755,8 +758,8 @@
     clear(chart);
     hint.textContent = "";
     // Un relais pas à jour refuserait les nouvelles cases : on le dit, et on n'offre pas de déplacements qui échoueraient.
-    var movable = isAdmin() && orgState.relayOk;
-    $("#org-warn").hidden = !(isAdmin() && !orgState.relayOk);
+    var movable = can("org") && orgState.relayOk;
+    $("#org-warn").hidden = !(can("org") && !orgState.relayOk);
     $(".orgbar").hidden = !movable;
     $("#org-legend").hidden = !orgState.items.length;
     if (!orgState.items.length) {
@@ -860,7 +863,6 @@
   var rlStatus = $("#rl-status"), rlHint = $("#rl-hint");
   var rDlg = $("#rl-rule-dialog"), rForm = $("#rl-rule-form"), rBody = $("#rl-r-body"), rStatus = $("#rl-r-status");
   var chDlg = $("#rl-chapter-dialog"), chForm = $("#rl-chapter-form"), chStatus = $("#rl-c-status");
-  function canRules() { return atLeast("manager"); }
   function rlSay(text, ok) { rlStatus.className = "form__status rl__status" + (ok ? " form__status--ok" : ""); rlStatus.textContent = text || ""; }
   function chapterById(id) { return rl.chapters.filter(function (c) { return c.id === id; })[0] || null; }
   function findRule(id) {
@@ -895,7 +897,8 @@
       rl.loaded = true; rl.missing = !!d.missing; rl.initialized = !!d.initialized;
       rl.chapters = d.chapters || []; rl.bareme = d.bareme || null; rl.limits = d.limits || null; rl.updated = d.updated || "";
       if (!chapterById(rl.sel)) rl.sel = rl.chapters.length ? rl.chapters[0].id : null;
-      renderRules(); fillBareme();
+      if (can("rules")) renderRules();   // les managers n'ont que le barème : pas de liste de règles à afficher
+      fillBareme();
       refreshMissing();
     }, function (e) { if (e.status !== 401) rlSay(e.message || "Chargement impossible.", false); });
   }
@@ -1150,9 +1153,10 @@
     var box = $("#rl-missing-box");
     box.hidden = true;
     $("#rb-origin").hidden = true;
-    if (!rl.initialized || rl.missing || !canRules()) return;
+    if (!rl.initialized || rl.missing || !(can("rules") || can("bareme"))) return;
     loadOrigin().then(function () {
       refreshBaremeOrigin();
+      if (!can("rules")) return;   // les chapitres manquants se règlent avec les règles (fondateur)
       var list = missingChapters();
       if (!list.length) return;
       var names = list.map(function (m) { return "« " + m.chapter.title + " » (" + m.chapter.rules.length + (m.chapter.rules.length > 1 ? " règles" : " règle") + ")"; }).join(", ");
@@ -1501,13 +1505,47 @@
       return loadRules().then(function () { bStatus.className = "form__status form__status--ok"; bStatus.textContent = "Barème enregistré."; });
     }, function (err) { if (err.status !== 401) bStatus.textContent = err.message || "Enregistrement impossible."; }).then(function () { btn.disabled = false; });
   });
-  $$(".seg__btn[data-rsub]").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var name = b.getAttribute("data-rsub");
-      $$(".seg__btn[data-rsub]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
-      $("#rsub-rules").hidden = name !== "rules"; $("#rsub-bareme").hidden = name !== "bareme";
+  function setRsub(name) {
+    if (name === "rules" && !can("rules")) name = "bareme";   // les managers n'ont que le barème
+    $$(".seg__btn[data-rsub]").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-rsub") === name)); });
+    $("#rsub-rules").hidden = name !== "rules"; $("#rsub-bareme").hidden = name !== "bareme";
+  }
+  $$(".seg__btn[data-rsub]").forEach(function (b) { b.addEventListener("click", function () { setRsub(b.getAttribute("data-rsub")); }); });
+
+  /* ---------- Modifications du site : ce que chaque grade peut modifier ---------- */
+  var EDITABLE = [
+    { key: "rules", title: "Règlement", what: "Les chapitres et les règles de la page Règlement : texte, ordre, publication, import.", open: function () { go("rules"); setRsub("rules"); } },
+    { key: "bareme", title: "Barème des sanctions", what: "Le barème affiché sur la page Règlement et dans Sanctions → Barème : catégories, infractions, sanctions.", open: function () { go("rules"); setRsub("bareme"); } },
+    { key: "org", title: "Organigramme", what: "L'équipe affichée sur la page Équipe du site : placer, déplacer, titres.", open: function () { go("org"); } },
+    { key: "commands", title: "Commandes", what: "La liste des commandes Discord et FiveM du panel.", open: function () { go("commands"); } }
+  ];
+  var GRADE_WHO = { support: "tout le staff", mod: "Modération et au-dessus", admin: "Administration et au-dessus", manager: "Managers et fondateur", founder: "Fondateur uniquement" };
+  function renderEdit() {
+    var box = $("#edit-cards"), lead = $("#edit-lead");
+    clear(box); clear(lead);
+    if (!state.me) return;
+    var mine = EDITABLE.filter(function (e) { return can(e.key); });
+    lead.appendChild(document.createTextNode("Votre grade : "));
+    lead.appendChild(el("strong", null, LEVELS[state.me.level] || ""));
+    lead.appendChild(document.createTextNode(". " + (mine.length
+      ? "Vous pouvez modifier : " + mine.map(function (e) { return e.title.toLowerCase(); }).join(", ") + "."
+      : "Votre grade ne permet de modifier aucun contenu du site.") + " Voici qui peut modifier quoi."));
+    EDITABLE.forEach(function (e) {
+      var ok = can(e.key);
+      var card = el("article", "card" + (ok ? "" : " card--locked"));
+      card.appendChild(el("h3", null, e.title));
+      card.appendChild(el("p", null, e.what));
+      var who = el("p", "edit__who"); who.appendChild(document.createTextNode("Peut modifier : ")); who.appendChild(el("strong", null, GRADE_WHO[permLevel(e.key)])); card.appendChild(who);
+      if (ok) {
+        var b = el("button", "btn btn--primary btn--small", "Ouvrir");
+        b.type = "button"; b.setAttribute("aria-label", "Ouvrir : " + e.title);
+        b.addEventListener("click", e.open);
+        card.appendChild(b);
+      } else card.appendChild(el("span", "badge badge--lock", "Non modifiable avec votre grade"));
+      box.appendChild(card);
     });
-  });
+    $("#edit-warn").hidden = !(!state.me.perms && atLeast("founder"));   // relais pas à jour : les nouveaux droits ne sont pas appliqués côté serveur
+  }
 
   /* ---------- Journal d'activité (administration) ---------- */
   function loadAudit() {
@@ -1534,7 +1572,7 @@
     if (me.avatar && /^https:\/\/cdn\.discordapp\.com\//.test(me.avatar)) { img.src = me.avatar; img.hidden = false; }
     else img.hidden = true;
     $$("[data-admin]").forEach(function (t) { t.hidden = !isAdmin(); });
-    $$("[data-manager]").forEach(function (t) { t.hidden = !atLeast("manager"); });   // règlement : manager et fondateur
+    $$("[data-can]").forEach(function (t) { t.hidden = !can(t.getAttribute("data-can")); });   // contenus modifiables selon le grade (voir « Modifications du site »)
     // On ne peut réserver une commande qu'à son propre niveau ou à un niveau inférieur.
     $$("#c-level option").forEach(function (o) { o.disabled = RANK[o.value] > RANK[me.level]; });
     // Niveau « support » : uniquement le barème (pas de journal des sanctions)

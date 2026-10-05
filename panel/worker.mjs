@@ -69,8 +69,12 @@ const KINDS = Object.keys(NODES);
 const STEP_TYPES = ["avertissement", "expulsion", "ban_temp", "ban_def", "autre"];
 const MAX_STEPS = 5;
 const MAX_BODY_BYTES = 5000;
-// Règlement : niveau minimal pour le gérer (un seul endroit à changer), niveaux du barème public (indicatif), tailles maximales.
-const RULES_LEVEL = "manager";
+// Droits de modification : niveau MINIMAL pour modifier chaque contenu (un seul endroit à changer). Le panel les lit via /api/me.
+//   commands : la liste des commandes · org : l'organigramme (page Équipe) · bareme : le barème des sanctions · rules : les règles et chapitres
+const PERMS = { commands: "founder", org: "manager", bareme: "manager", rules: "founder" };
+const GRADE_NAMES = { support: "au support", mod: "à la modération", admin: "à l'administration", manager: "aux managers et au fondateur", founder: "au fondateur" };
+const reserved = (perm) => `Réservé ${GRADE_NAMES[PERMS[perm]] || "à un niveau supérieur"}${PERMS[perm] === "admin" || PERMS[perm] === "mod" ? " et au-dessus" : ""}.`;
+// Niveaux du barème public (indicatif, anciens niveaux), tailles maximales.
 const SANCTION_LEVELS = [["mineure", "Mineure"], ["moderee", "Modérée"], ["grave", "Grave"], ["critique", "Critique"]];
 const BAREME_INTRO = "Le barème reste indicatif et la décision finale dépend toujours du contexte.";
 // Sections du barème : « infractions » = catégorie d'infractions (cartes : renvois vers les règles + progression des sanctions),
@@ -486,13 +490,17 @@ async function publicRules(env) {
 }
 
 /**
- * Routes de gestion du règlement (réservées au niveau RULES_LEVEL et au-dessus). Retourne null si la route n'est pas concernée.
+ * Routes du règlement. Lecture : à partir du niveau qui peut modifier le barème ; modifier les règles et chapitres : PERMS.rules ;
+ * modifier le barème (PUT /api/rules-bareme) : PERMS.bareme. Retourne null si la route n'est pas concernée.
  * Les numéros ne sont pas stockés : « 5.12 » = 12ᵉ règle publiée du 5ᵉ chapitre publié, selon l'ordre choisi dans le panel.
  */
 async function rulesApi(request, env, url, user, reply) {
   const path = url.pathname, method = request.method;
   if (!/^\/api\/(rules|rule-chapters|rules-bareme)(\/|$)/.test(path)) return null;
-  if (RANK[user.lvl] < RANK[RULES_LEVEL]) return reply({ error: "Réservé aux responsables (manager) et au fondateur." }, 403);
+  const lowest = Math.min(RANK[PERMS.rules], RANK[PERMS.bareme]);
+  if (RANK[user.lvl] < lowest) return reply({ error: reserved("bareme") }, 403);
+  if (method !== "GET" && path !== "/api/rules-bareme" && RANK[user.lvl] < RANK[PERMS.rules]) return reply({ error: reserved("rules") }, 403);
+  if (path === "/api/rules-bareme" && method !== "GET" && RANK[user.lvl] < RANK[PERMS.bareme]) return reply({ error: reserved("bareme") }, 403);
 
   if (path === "/api/rules" && method === "GET") {
     let data;
@@ -501,7 +509,7 @@ async function rulesApi(request, env, url, user, reply) {
       id: c.id, title: c.title, intro: c.intro, numbered: flagged(c.numbered), published: flagged(c.published), position: c.position,
       rules: data.rules.filter((r) => r.chapter_id === c.id).map((r) => ({ id: r.id, chapter_id: r.chapter_id, position: r.position, title: r.title, body: r.body, published: flagged(r.published), important: flagged(r.important), updated_at: r.updated_at, updated_by: r.updated_by })),
     }));
-    return reply({ initialized: data.initialized, missing: false, updated: data.updated, chapters, bareme: data.bareme, min_level: RULES_LEVEL, limits: { bareme_kinds: BAREME_KINDS, bareme_sections: MAX_BAREME_SECTIONS, bareme_body: MAX_BAREME_BODY } });
+    return reply({ initialized: data.initialized, missing: false, updated: data.updated, chapters, bareme: data.bareme, perms: PERMS, limits: { bareme_kinds: BAREME_KINDS, bareme_sections: MAX_BAREME_SECTIONS, bareme_body: MAX_BAREME_BODY } });
   }
 
   // Import du règlement d'origine (fondateur) : par morceaux, un chapitre à la fois, pour rester léger.
@@ -717,7 +725,7 @@ async function api(request, env, url) {
   if (rulesOut) return rulesOut;
 
   if (path === "/api/me" && request.method === "GET") {
-    return reply({ id: user.sub, name: user.name, avatar: user.avatar, level: user.lvl, expires: user.exp });
+    return reply({ id: user.sub, name: user.name, avatar: user.avatar, level: user.lvl, expires: user.exp, perms: PERMS });
   }
 
   // Le journal contient des données sur des joueurs : le niveau « support » n'y a pas accès.
@@ -778,9 +786,10 @@ async function api(request, env, url) {
     return reply({ audit: results });
   }
 
-  /* --- Commandes et organigramme : lecture pour tout le staff, écriture pour l'administration --- */
+  /* --- Commandes et organigramme : lecture pour tout le staff, écriture selon PERMS (commandes : fondateur, organigramme : manager et au-dessus) --- */
   const RESOURCES = {
     penalties: {
+      perm: "bareme",   // ancienne liste privée (plus utilisée par le panel)
       list: "SELECT id, cat, name, steps, notes FROM penalties ORDER BY cat COLLATE NOCASE, name COLLATE NOCASE, id",
       shape: (rows) => rows.map((r) => ({ ...r, steps: readSteps(r.steps) })),
       parse: parsePenalty, label_of: (v) => v.name,
@@ -790,6 +799,7 @@ async function api(request, env, url) {
       actions: { add: "barème : cas ajouté", edit: "barème : cas modifié", del: "barème : cas supprimé" },
     },
     commands: {
+      perm: "commands",
       // Chaque commande a un niveau minimal (min_level) : on ne reçoit que celles de son niveau et des niveaux inférieurs.
       scoped: true,
       list: "SELECT id, platform, cat, cmd, descr, example, min_level FROM commands WHERE min_level IN ({levels}) ORDER BY platform, cat COLLATE NOCASE, id",
@@ -803,6 +813,7 @@ async function api(request, env, url) {
       actions: { add: "commande ajoutée", edit: "commande modifiée", del: "commande supprimée" },
     },
     org: {
+      perm: "org",
       list: "SELECT id, name, role, grp, tier, kind, position, discord_id, avatar FROM org ORDER BY tier, position, id",
       listFallback: "SELECT id, name, role, grp, tier, kind, position FROM org ORDER BY tier, position, id",   // avant migration-organigramme-discord.sql
       // On joint la liste des cases connues : le panel s'en sert pour repérer un relais pas à jour.
@@ -840,7 +851,7 @@ async function api(request, env, url) {
   }
 
   if (res && (listMatch ? request.method === "POST" : ["PUT", "DELETE"].includes(request.method))) {
-    if (RANK[user.lvl] < RANK.admin) return reply({ error: "Réservé à l'administration." }, 403);
+    if (RANK[user.lvl] < RANK[PERMS[res.perm]]) return reply({ error: reserved(res.perm) }, 403);
 
     if (request.method === "DELETE") {
       const id = Number(itemMatch[2]);
