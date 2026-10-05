@@ -68,15 +68,17 @@
   /* ---------- Navigation entre les sections ---------- */
   var tabs = $$('.staff__tabs [data-view]');
   function go(name) {
-    // Si on était en bas d'une longue section, on remonte au début de la nouvelle.
+    // Si on était en bas d'une longue section, on remonte au début de la nouvelle (après le changement de section,
+    // sans défilement animé : la page change de hauteur, une animation en cours pourrait être interrompue).
     var main = $(".staff__main");
-    if (main && main.getBoundingClientRect().top < 0) main.scrollIntoView({ block: "start" });
+    var backToTop = !!main && main.getBoundingClientRect().top < 0;
     tabs.forEach(function (t) {
       var on = t.getAttribute("data-view") === name;
       t.setAttribute("aria-selected", String(on));
       t.tabIndex = on ? 0 : -1;
     });
     ["home", "sanctions", "commands", "org", "rules", "audit"].forEach(function (v) { $("#view-" + v).hidden = v !== name; });
+    if (backToTop) main.scrollIntoView({ block: "start", behavior: "instant" });
     if (name === "sanctions") setSub(subView);
     if (name === "commands") { loadCommands(); if (!cmdState.editing) cForm.elements.platform.value = cmdState.platform; }
     if (name === "org") loadOrg();

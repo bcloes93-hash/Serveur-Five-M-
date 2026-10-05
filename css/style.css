@@ -926,8 +926,9 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .staff .container > * { max-width: 960px; }   /* même alignement à gauche que le titre de la page */
 .panelbox {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: clamp(22px, 4vw, 36px); margin-bottom: 24px;
+  padding: clamp(22px, 4vw, 36px); margin-bottom: 0;
 }
+.panelbox + .panelbox { margin-top: 24px; }   /* l'espace entre deux cadres est au-dessus du second : le dernier n'ajoute rien sous le contenu */
 .panelbox .form { margin-top: 20px; }
 .staff__error { margin: 18px 0 0; padding: 12px 16px; border-radius: 12px; border: 1px solid rgba(251, 113, 133, 0.5); background: rgba(251, 113, 133, 0.1); color: #fecdd3; }
 .staff__loginaction { margin-top: 24px; }
@@ -961,21 +962,25 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 
 /* Disposition en deux colonnes : menu vertical à gauche, contenu à droite */
 .staff .container > #staff-app { max-width: none; }
-.staff__layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; align-items: start; }
-.staff__main { min-width: 0; }
-.staff__side, .staff__main { scroll-margin-top: 84px; }
+.staff__layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; align-items: stretch; }   /* le menu occupe toute la hauteur du contenu */
+@media (min-width: 901px) { .staff__layout { min-height: calc(100vh - 84px); } }   /* au moins la hauteur de l'écran, même pour une section courte */
+.staff__main { min-width: 0; display: flex; flex-direction: column; }
+.staff__main > section:not([hidden]) { flex: 1 0 auto; }   /* une section courte (Activité, Accueil) descend jusqu'au bas du menu */
+/* (le décalage sous le menu du site est déjà donné par scroll-padding-top de la page) */
 .staff__side {
-  position: sticky; top: 84px; display: flex; flex-direction: column; gap: 16px; padding: 18px;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
+/* Le cadre du menu s'étire sur toute la hauteur de la page ; son contenu (profil, onglets) reste collé en haut de l'écran quand on défile */
+.staff__side-inner { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 16px; }
 .staff__side .staff__bar { margin: 0; padding-bottom: 16px; border-bottom: 1px solid var(--border); flex-wrap: nowrap; }
 .staff__side .staff__who { margin-right: 0; min-width: 0; }
 .staff__side .tabs { display: flex; flex-direction: column; gap: 4px; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .staff__side .tabs__tab { width: 100%; text-align: left; padding: 12px 16px; border-radius: 12px; }
 .staff__logout { align-self: stretch; margin-top: 4px; }
 @media (max-width: 900px) {
-  .staff__layout { grid-template-columns: 1fr; }
+  .staff__layout { grid-template-columns: 1fr; align-items: start; }
   .staff__side { position: static; }
+  .staff__side-inner { position: static; }
   .staff__side .tabs { flex-direction: row; flex-wrap: wrap; }
   .staff__side .tabs__tab { width: auto; flex: 1 1 auto; text-align: center; padding: 11px 12px; }
 }
