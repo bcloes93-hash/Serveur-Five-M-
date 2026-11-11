@@ -6,7 +6,9 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 
 | Fichier | Rôle |
 | --- | --- |
-| `index.html` | Accueil : bannière, statut en direct, présentation, étapes pour rejoindre |
+| `index.html` | Accueil : bannière, statut en direct, appel à rejoindre le Discord |
+| `serveur.html` | Page Le serveur : présentation (mentalité, roleplay, économie, communauté) |
+| `rejoindre.html` | Page Rejoindre : prérequis et les 4 étapes pour rejoindre le serveur |
 | `reglement.html`, `js/reglement.js`, `js/rules-render.js` | Page Règlement : chapitres à gauche, règle choisie à droite, recherche, adresses directes (`#r5-12`), date de mise à jour, barème indicatif. Le contenu est géré depuis le panel staff (onglet *Règlement*) |
 | `data/reglement.json` | Version d'origine du règlement (import initial dans le panel, et filet de sécurité si le panel est injoignable) |
 | `equipe.html`, `js/equipe.js`, `js/org-model.js` | Équipe du serveur : organigramme en direct (celui du panel, synchronisé), avec liste d'origine en secours |

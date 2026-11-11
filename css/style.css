@@ -1087,6 +1087,10 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .audit__when { color: var(--muted); font-variant-numeric: tabular-nums; }
 .audit__target { color: var(--muted); }
 
+/* ---------- Pages « Le serveur » et « Rejoindre » ---------- */
+.page-body { padding: 28px 0 clamp(64px, 9vw, 110px); }
+.page-body .steps { margin-top: 8px; }
+.page-body__actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
 /* ---------- Animations d'apparition ---------- */
 .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 .js .reveal.is-visible { opacity: 1; transform: none; }

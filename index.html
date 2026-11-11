@@ -18,7 +18,7 @@
   <script>document.documentElement.classList.add("js");</script>
 </head>
 <body>
-  <a class="skip-link" href="#serveur">Aller au contenu</a>
+  <a class="skip-link" href="#contenu">Aller au contenu</a>
 
   <header class="nav" id="top">
     <div class="nav__inner">
@@ -34,8 +34,8 @@
 
       <nav class="nav__menu" id="menu" aria-label="Navigation principale">
         <a href="index.html" aria-current="page">Accueil</a>
-        <a href="#serveur">Le serveur</a>
-        <a href="#rejoindre">Rejoindre</a>
+        <a href="serveur.html">Le serveur</a>
+        <a href="rejoindre.html">Rejoindre</a>
         <a href="reglement.html">Règlement</a>
         <a href="equipe.html">Équipe</a>
         <a href="candidature.html">Candidature</a>
@@ -45,7 +45,7 @@
     </div>
   </header>
 
-  <main>
+  <main id="contenu">
     <!-- HERO : la bannière contient déjà le logo et le message d'accueil -->
     <section class="hero" aria-labelledby="hero-title">
       <h1 class="sr-only" id="hero-title">Santos Legacy RP – Serveur RP FiveM sérieux, communauté mature, expérience immersive</h1>
@@ -86,81 +86,6 @@
       </div>
     </section>
 
-    <!-- LE SERVEUR -->
-    <section class="section" id="serveur" aria-labelledby="serveur-title">
-      <div class="container">
-        <p class="eyebrow">Le serveur</p>
-        <h2 class="section__title" id="serveur-title">Un roleplay pensé pour durer</h2>
-        <p class="section__lead">Santos Legacy RP rassemble des joueurs qui veulent construire une vraie histoire à Los Santos, dans un cadre sérieux et respectueux.</p>
-
-        <div class="cards">
-          <article class="card reveal">
-            <span class="card__num" aria-hidden="true">01</span>
-            <h3>Mentalité sérieuse</h3>
-            <p>Un cadre clair, un staff à l'écoute et des règles appliquées avec équité : chacun peut s'investir pleinement dans son personnage.</p>
-          </article>
-          <article class="card reveal">
-            <span class="card__num" aria-hidden="true">02</span>
-            <h3>Roleplay immersif</h3>
-            <p>Rencontres, carrières, rivalités, alliances : chaque scène compte et chaque choix laisse une trace dans la ville.</p>
-          </article>
-          <article class="card reveal">
-            <span class="card__num" aria-hidden="true">03</span>
-            <h3>Économie soignée</h3>
-            <p>Une économie équilibrée, pensée pour que chaque métier et chaque activité ait du sens et récompense l'implication.</p>
-          </article>
-          <article class="card reveal">
-            <span class="card__num" aria-hidden="true">04</span>
-            <h3>Communauté mature</h3>
-            <p>Une communauté adulte (18 ans minimum) où le fair-play, le respect et le plaisir de jouer ensemble passent avant tout.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- REJOINDRE -->
-    <section class="section section--alt" id="rejoindre" aria-labelledby="rejoindre-title">
-      <div class="container">
-        <p class="eyebrow">Rejoindre</p>
-        <h2 class="section__title" id="rejoindre-title">Votre arrivée en 4 étapes</h2>
-
-        <ul class="prereq" aria-label="Prérequis">
-          <li>18 ans minimum</li>
-          <li>Micro de bonne qualité</li>
-        </ul>
-
-        <ol class="steps">
-          <li class="step reveal">
-            <span class="step__num" aria-hidden="true">1</span>
-            <h3>Rejoindre le Discord</h3>
-            <p>Toute la communauté et le staff s'y retrouvent. C'est là que tout commence.</p>
-          </li>
-          <li class="step reveal">
-            <span class="step__num" aria-hidden="true">2</span>
-            <h3>Lire le règlement</h3>
-            <p>Prenez le temps de lire les <a href="reglement.html">règles du serveur</a> : elles garantissent l'expérience de tous.</p>
-          </li>
-          <li class="step reveal">
-            <span class="step__num" aria-hidden="true">3</span>
-            <h3>Envoyer votre candidature</h3>
-            <p>Une candidature écrite et rapide, à remplir sur la page <a href="candidature.html#whitelist">Candidature</a>. Pas d'entretien vocal pour le moment, mais les nouveaux joueurs sont suivis de très près : aucun troll toléré.</p>
-          </li>
-          <li class="step reveal">
-            <span class="step__num" aria-hidden="true">4</span>
-            <h3>Se connecter en jeu</h3>
-            <p class="only-cfx">Lancez FiveM, puis connectez-vous directement avec le bouton ci-dessous.</p>
-            <p class="no-cfx">Le serveur ouvre bientôt : restez connecté sur le Discord pour la date d'ouverture.</p>
-          </li>
-        </ol>
-
-        <div class="steps__action">
-          <a class="btn btn--primary" href="candidature.html#whitelist">Candidater</a>
-          <a class="btn btn--primary only-cfx" href="#" data-connect>Rejoindre le serveur</a>
-          <a class="btn btn--discord" href="#" data-discord target="_blank" rel="noopener">Ouvrir le Discord</a>
-        </div>
-      </div>
-    </section>
-
     <!-- APPEL FINAL -->
     <section class="cta-band" aria-labelledby="cta-title">
       <div class="container cta-band__inner">
@@ -182,6 +107,8 @@
       </div>
       <nav class="footer__links" aria-label="Liens du pied de page">
         <a href="index.html">Accueil</a>
+        <a href="serveur.html">Le serveur</a>
+        <a href="rejoindre.html">Rejoindre</a>
         <a href="reglement.html">Règlement</a>
         <a href="equipe.html">Équipe</a>
         <a href="candidature.html">Candidature</a>
