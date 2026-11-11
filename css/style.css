@@ -1136,12 +1136,6 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .biz__body { display: flex; flex-direction: column; flex: 1; padding: 20px 22px 24px; }
 .biz__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; margin-bottom: 12px; }
 .biz__kind { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
-.biz__kind--npc { color: var(--cyan); }
-
-/* Section « Tenus par des PNJ », sous les entreprises à reprendre */
-.biz-section { margin: clamp(40px, 5vw, 60px) 0 18px; }
-.biz-section__title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.9rem, 3.2vw, 2.6rem); letter-spacing: 0.04em; line-height: 1.05; }
-.biz-section__lead { margin: 8px 0 0; max-width: 62ch; color: var(--muted); }
 .biz__status {
   display: inline-flex; align-items: center; gap: 7px;
   font: 600 0.85rem/1.2 var(--font-body); padding: 5px 11px; border-radius: 999px; border: 1px solid;
