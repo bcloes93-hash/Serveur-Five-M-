@@ -8,6 +8,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | --- | --- |
 | `index.html` | Accueil : bannière, statut en direct, appel à rejoindre le Discord |
 | `serveur.html` | Page Le serveur : présentation (mentalité, roleplay, économie, communauté) |
+| `entreprises.html`, `assets/entreprises/` | Page Entreprises : services publics, entreprises et activités, avec leur logo. Le badge de chaque carte se change dans le fichier : `biz__status--take` (« À reprendre »), `biz__status--open` (« Recrute ») ou `biz__status--full` (« Complet »), en changeant aussi le texte |
 | `rejoindre.html` | Page Rejoindre : prérequis et les 4 étapes pour rejoindre le serveur |
 | `reglement.html`, `js/reglement.js`, `js/rules-render.js`, `css/livre.css` | Page Règlement en forme de livre (couverture en cuir, pages qui se tournent, une page sur téléphone) : sommaire, marque-pages par chapitre, recherche, adresses directes (`#r5-12`), barème indicatif, mode « Lire en continu ». La mise en page en pages se fait dans le navigateur, selon la taille de l'écran. Le contenu est géré depuis le panel staff (onglet *Règlement*) |
 | `data/reglement.json` | Version d'origine du règlement (import initial dans le panel, et filet de sécurité si le panel est injoignable) |
