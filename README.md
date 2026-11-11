@@ -20,7 +20,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `worker/` | Relais Cloudflare qui poste les candidatures dans Discord (`relay.mjs`, tests, notice) |
 | `staff.html`, `js/staff.js` | Page du panel staff (connexion Discord, sanctions : barème et journal, commandes, organigramme, règlement) |
 | `panel/` | Relais Cloudflare du panel staff : connexion, droits, base de données (`worker.mjs`, `schema.sql`, tests, notice) |
-| `assets/` | Logo, bannières et logo de la couverture du règlement (`livre-logo.webp`) |
+| `assets/` | Logo, bannières, logo de la couverture du règlement (`livre-logo.webp`) et image de partage (`partage.jpg`, 1200×630 : l'aperçu affiché quand on colle un lien du site dans Discord ou sur les réseaux) |
 
 ## Brancher le serveur FiveM
 
