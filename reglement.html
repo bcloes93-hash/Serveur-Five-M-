@@ -13,11 +13,12 @@
   <link rel="icon" type="image/png" href="assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/livre.css">
   <script>document.documentElement.classList.add("js");</script>
 </head>
-<body>
+<body class="livre-page">
   <a class="skip-link" href="#contenu">Aller au contenu</a>
 
   <header class="nav" id="top">
@@ -46,39 +47,61 @@
   </header>
 
   <main id="contenu">
-    <section class="page-head">
+    <section class="livre" id="reglement" aria-label="Règlement">
       <div class="container">
-        <p class="eyebrow">Règlement</p>
-        <h1 class="section__title">Les règles de Santos Legacy RP</h1>
-        <p class="section__lead">Elles existent pour garantir à tous une expérience sérieuse et immersive. En jouant sur le serveur, vous acceptez de les respecter.</p>
-      </div>
-    </section>
-
-    <section class="regl" id="reglement" aria-label="Règlement">
-      <div class="container">
-        <div class="regl__toolbar">
-          <form class="regl__search" role="search" id="regl-search-form" novalidate>
-            <label class="sr-only" for="regl-q">Rechercher dans le règlement</label>
-            <svg class="regl__search-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.6-3.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            <input id="regl-q" type="search" maxlength="80" placeholder="Rechercher une règle…" autocomplete="off" spellcheck="false" disabled>
-            <button class="regl__clear" id="regl-clear" type="button" hidden aria-label="Effacer la recherche">×</button>
-          </form>
-          <p class="regl__updated" id="regl-updated" hidden>Dernière mise à jour : <time id="regl-updated-time"></time></p>
-        </div>
-        <div class="regl__layout">
-          <nav class="regl__nav" id="regl-nav" aria-label="Chapitres du règlement">
-            <button class="regl__toggle" id="regl-toggle" type="button" aria-expanded="false" aria-controls="regl-list" hidden>
-              <span class="regl__toggle-label" id="regl-toggle-label">Chapitres</span>
-              <span class="regl__toggle-chev" aria-hidden="true"></span>
-            </button>
-            <p class="regl__nav-title">Chapitres</p>
-            <ol class="regl__list" id="regl-list"></ol>
-          </nav>
-          <div class="regl__content" id="regl-content">
-            <p class="regl__status" id="regl-status" role="status">Chargement du règlement…</p>
-            <noscript><p class="regl__status">Le règlement s’affiche avec JavaScript. Activez-le dans votre navigateur, ou retrouvez les règles sur notre Discord.</p></noscript>
+        <div class="livre__head">
+          <div>
+            <p class="eyebrow">Règlement</p>
+            <h1 class="section__title">Le livre des règles</h1>
+          </div>
+          <div class="livre__tools">
+            <form class="livre__search" role="search" id="livre-search" novalidate>
+              <label class="sr-only" for="livre-q">Rechercher dans le règlement</label>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.6-3.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <input id="livre-q" type="search" maxlength="80" placeholder="Rechercher une règle…" autocomplete="off" spellcheck="false" disabled aria-controls="livre-results" aria-expanded="false">
+              <button class="livre__clear" id="livre-clear" type="button" hidden aria-label="Effacer la recherche">×</button>
+              <div class="livre__results" id="livre-results" hidden></div>
+            </form>
+            <select class="livre__select" id="livre-toc" aria-label="Aller à un chapitre" disabled>
+              <option value="">Sommaire</option>
+            </select>
+            <button class="livre__mode" id="livre-mode" type="button" aria-pressed="false" disabled>Lire en continu</button>
           </div>
         </div>
+        <p class="livre__updated" id="livre-updated" hidden>Dernière mise à jour : <time id="livre-updated-time"></time></p>
+
+        <div class="livre__stage" id="livre-stage">
+          <div class="book" id="book" data-mode="spread" data-at="cover" role="region" aria-label="Règlement de Santos Legacy RP, présenté comme un livre">
+            <div class="book__glow" aria-hidden="true"></div>
+            <div class="book__body" id="book-body">
+              <div class="book__stack book__stack--left" aria-hidden="true"></div>
+              <div class="book__stack book__stack--right" aria-hidden="true"></div>
+              <div class="book__slot book__slot--left" id="slot-left"></div>
+              <div class="book__slot book__slot--right" id="slot-right"></div>
+              <div class="leaf" id="leaf" hidden aria-hidden="true">
+                <div class="leaf__face leaf__face--front"></div>
+                <div class="leaf__face leaf__face--back"></div>
+              </div>
+              <button class="book__corner book__corner--prev" id="corner-prev" type="button" aria-label="Page précédente" hidden></button>
+              <button class="book__corner book__corner--next" id="corner-next" type="button" aria-label="Page suivante" hidden></button>
+            </div>
+            <nav class="book__tabs" id="book-tabs" aria-label="Marque-pages des chapitres"></nav>
+          </div>
+        </div>
+        <p class="livre__hint" id="livre-hint">Cliquez sur la couverture pour ouvrir le livre, puis tournez les pages avec les flèches ou les coins.</p>
+
+        <div class="livre__controls" id="livre-controls" hidden>
+          <button class="livre__arrow" id="livre-prev" type="button" aria-label="Page précédente">‹</button>
+          <div class="livre__where">
+            <output id="livre-where" for="livre-range">Couverture</output>
+            <input class="livre__range" id="livre-range" type="range" min="0" max="0" step="2" value="0" aria-label="Aller à une page">
+          </div>
+          <button class="livre__arrow" id="livre-next" type="button" aria-label="Page suivante">›</button>
+          <button class="livre__anim" id="livre-anim" type="button" aria-pressed="true">Pages animées : oui</button>
+        </div>
+        <p class="livre__status" id="livre-status" role="status">Chargement du règlement…</p>
+        <noscript><p class="livre__status">Le règlement s’affiche avec JavaScript. Activez-le dans votre navigateur, ou retrouvez les règles sur notre Discord.</p></noscript>
+        <div class="lect" id="livre-lecture" hidden></div>
       </div>
     </section>
   </main>

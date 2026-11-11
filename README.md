@@ -9,7 +9,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `index.html` | Accueil : bannière, statut en direct, appel à rejoindre le Discord |
 | `serveur.html` | Page Le serveur : présentation (mentalité, roleplay, économie, communauté) |
 | `rejoindre.html` | Page Rejoindre : prérequis et les 4 étapes pour rejoindre le serveur |
-| `reglement.html`, `js/reglement.js`, `js/rules-render.js` | Page Règlement : chapitres à gauche, règle choisie à droite, recherche, adresses directes (`#r5-12`), date de mise à jour, barème indicatif. Le contenu est géré depuis le panel staff (onglet *Règlement*) |
+| `reglement.html`, `js/reglement.js`, `js/rules-render.js`, `css/livre.css` | Page Règlement en forme de livre (couverture en cuir, pages qui se tournent, une page sur téléphone) : sommaire, marque-pages par chapitre, recherche, adresses directes (`#r5-12`), barème indicatif, mode « Lire en continu ». La mise en page en pages se fait dans le navigateur, selon la taille de l'écran. Le contenu est géré depuis le panel staff (onglet *Règlement*) |
 | `data/reglement.json` | Version d'origine du règlement (import initial dans le panel, et filet de sécurité si le panel est injoignable) |
 | `equipe.html`, `js/equipe.js`, `js/org-model.js` | Équipe du serveur : organigramme en direct (celui du panel, synchronisé), avec liste d'origine en secours |
 | `candidature.html` | Candidature WL (joueur) et candidature Staff, en deux onglets |
@@ -20,7 +20,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `worker/` | Relais Cloudflare qui poste les candidatures dans Discord (`relay.mjs`, tests, notice) |
 | `staff.html`, `js/staff.js` | Page du panel staff (connexion Discord, sanctions : barème et journal, commandes, organigramme, règlement) |
 | `panel/` | Relais Cloudflare du panel staff : connexion, droits, base de données (`worker.mjs`, `schema.sql`, tests, notice) |
-| `assets/` | Logo et bannières |
+| `assets/` | Logo, bannières et logo de la couverture du règlement (`livre-logo.webp`) |
 
 ## Brancher le serveur FiveM
 
