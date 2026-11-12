@@ -71,6 +71,38 @@
       </div>
     </section>
 
+    <!-- COMPTE À REBOURS : affiché seulement si openingDate est renseignée dans js/config.js -->
+    <section class="countdown" aria-labelledby="countdown-title" data-countdown hidden>
+      <div class="container">
+        <div class="countdown__box">
+          <h2 class="countdown__title" id="countdown-title">Ouverture du serveur</h2>
+          <p class="countdown__date" data-countdown-date></p>
+          <div class="countdown__clock" aria-hidden="true" data-countdown-clock>
+            <div class="countdown__unit"><span class="countdown__num" data-cd="d">0</span><span class="countdown__label" data-cd-label="d">jours</span></div>
+            <div class="countdown__unit"><span class="countdown__num" data-cd="h">00</span><span class="countdown__label" data-cd-label="h">heures</span></div>
+            <div class="countdown__unit"><span class="countdown__num" data-cd="m">00</span><span class="countdown__label" data-cd-label="m">minutes</span></div>
+            <div class="countdown__unit"><span class="countdown__num" data-cd="s">00</span><span class="countdown__label" data-cd-label="s">secondes</span></div>
+          </div>
+          <div class="countdown__open" data-countdown-open hidden>
+            <p class="countdown__live">Le serveur est ouvert&nbsp;!</p>
+            <div class="countdown__actions">
+              <a class="btn btn--primary only-cfx" href="#" data-connect>Se connecter au serveur</a>
+              <a class="btn btn--primary no-cfx" href="#" data-discord target="_blank" rel="noopener">Rejoindre le Discord</a>
+            </div>
+          </div>
+          <!-- Phrase du Nouvel An : les morceaux s'allument l'un après l'autre (--i = ordre), le dernier reste en néon -->
+          <p class="countdown__motto">
+            <span style="--i: 0">Nouvelle année.</span>
+            <span style="--i: 1">Nouvelles résolutions.</span>
+            <span style="--i: 2">Nouvelle vie.</span>
+            <span style="--i: 3">Nouvelle histoire.</span>
+            <span class="countdown__motto-break" aria-hidden="true"></span>
+            <span class="countdown__motto-end" style="--i: 4">Nouveau serveur.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- STATUT -->
     <section class="status" aria-label="État du serveur">
       <div class="container">

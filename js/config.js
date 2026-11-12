@@ -14,6 +14,13 @@ window.SITE_CONFIG = {
   // alors « Ouverture prochaine » et masque le bouton de connexion.
   cfxCode: "",
 
+  // Date et heure d'ouverture du serveur, avec le décalage horaire de Paris :
+  // "+01:00" en hiver, "+02:00" en été. Exemple : "2026-12-05T21:00:00+01:00".
+  // Renseignée : l'accueil affiche un compte à rebours, puis « Le serveur est ouvert ! »
+  // le moment venu (avec le bouton de connexion si cfxCode est rempli).
+  // Laisser vide : pas de compte à rebours.
+  openingDate: "2027-01-01T19:00:00+01:00",
+
   // Adresse du panel staff (relais Cloudflare « panel », voir panel/README.md).
   // Laisser vide tant que le panel n'est pas installé : la page staff indique alors qu'il n'est pas activé.
   staffApi: "https://santos-legacy-staff.b-cloes93.workers.dev",

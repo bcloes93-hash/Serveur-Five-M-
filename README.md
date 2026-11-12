@@ -14,7 +14,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `data/reglement.json` | Version d'origine du règlement (import initial dans le panel, et filet de sécurité si le panel est injoignable) |
 | `equipe.html`, `js/equipe.js`, `js/org-model.js` | Équipe du serveur : organigramme en direct (celui du panel, synchronisé), avec liste d'origine en secours |
 | `candidature.html` | Candidature WL (joueur) et candidature Staff, en deux onglets |
-| `js/config.js` | **Seul fichier à modifier** : lien Discord et code cfx.re |
+| `js/config.js` | **Seul fichier à modifier** : lien Discord, code cfx.re et date d'ouverture |
 | `css/style.css` | Thème néon (couleurs en variables CSS au début du fichier) |
 | `js/main.js` | Menu mobile, animations, statistiques Discord et FiveM |
 | `js/candidature.js` | Onglets, validation et envoi des candidatures |
@@ -33,6 +33,20 @@ cfxCode: "abc123", // pour https://cfx.re/join/abc123
 
 Le site affiche alors le bouton « Rejoindre le serveur », l'état du serveur et le nombre de joueurs.
 Tant que le champ est vide, le site affiche « Ouverture prochaine » et pousse vers le Discord.
+
+### Compte à rebours d'ouverture
+
+Renseigner la date et l'heure d'ouverture dans `js/config.js`, avec le décalage horaire de Paris
+(`+01:00` en hiver, `+02:00` en été) :
+
+```js
+openingDate: "2026-12-05T21:00:00+01:00", // samedi 5 décembre 2026 à 21 h, heure de Paris
+```
+
+L'accueil affiche alors un compte à rebours (jours, heures, minutes, secondes) et la case « Serveur »
+indique « Ouverture le 5 décembre ». À l'heure dite, le compte à rebours laisse place à « Le serveur est
+ouvert ! » avec le bouton de connexion (si `cfxCode` est rempli) ou celui du Discord. Champ vide : pas de
+compte à rebours.
 
 > Les statistiques sont lues directement depuis le navigateur des visiteurs
 > (API d'invitation Discord et API publique Cfx.re). Si l'une de ces API refuse la requête,

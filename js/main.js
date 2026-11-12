@@ -101,4 +101,54 @@
         setState("unknown", "Statut indisponible");
       });
   }
+
+  /* ---------- Compte à rebours d'ouverture (accueil) ---------- */
+  // openingDate (js/config.js) porte son décalage horaire : la date est la même pour tous les visiteurs.
+  var opening = cfg.openingDate ? new Date(cfg.openingDate) : null;
+  if (opening && isNaN(opening.getTime())) opening = null;
+  if (opening) {
+    var when = (function (d) {
+      try {
+        var p = {};
+        new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+          .formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
+        var time = Number(p.hour) + " h" + (p.minute !== "00" ? " " + p.minute : "");
+        var day = p.day === "1" ? "1er" : p.day;
+        return { long: p.weekday.charAt(0).toUpperCase() + p.weekday.slice(1) + " " + day + " " + p.month + " " + p.year + " à " + time, short: day + " " + p.month };
+      } catch (e) {
+        return { long: d.toLocaleString("fr-FR"), short: d.toLocaleDateString("fr-FR") };
+      }
+    })(opening);
+
+    if (!cfx && Date.now() < opening.getTime()) setState("soon", "Ouverture le " + when.short);
+
+    var cd = $("[data-countdown]");
+    if (cd) {
+      var clock = $("[data-countdown-clock]", cd), dateEl = $("[data-countdown-date]", cd), openEl = $("[data-countdown-open]", cd);
+      var nums = {}, labels = {};
+      ["d", "h", "m", "s"].forEach(function (k) { nums[k] = $('[data-cd="' + k + '"]', cd); labels[k] = $('[data-cd-label="' + k + '"]', cd); });
+      var words = { d: ["jour", "jours"], h: ["heure", "heures"], m: ["minute", "minutes"], s: ["seconde", "secondes"] };
+      var timer = null;
+      var show = function (k, v, pad) {
+        var txt = pad && v < 10 ? "0" + v : String(v);
+        if (nums[k].textContent !== txt) nums[k].textContent = txt;
+        labels[k].textContent = words[k][v < 2 ? 0 : 1];   // en français, 0 et 1 restent au singulier
+      };
+      var tick = function () {
+        var left = Math.floor((opening.getTime() - Date.now()) / 1000);
+        if (left <= 0) {
+          clock.hidden = true; dateEl.hidden = true; openEl.hidden = false;
+          if (!cfx) setState("on", "Ouvert");   // avec un code cfx.re, c'est l'API Cfx.re qui donne l'état réel
+          if (timer) clearInterval(timer);
+          return;
+        }
+        var d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
+        show("d", d, false); show("h", h, true); show("m", m, true); show("s", s, true);
+      };
+      dateEl.textContent = when.long + " (heure de Paris)";
+      cd.hidden = false;
+      tick();
+      if (opening.getTime() > Date.now()) timer = setInterval(tick, 1000);
+    }
+  }
 })();
