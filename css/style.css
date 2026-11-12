@@ -255,6 +255,39 @@ a:hover { color: #7be6ff; }
   .countdown__motto .countdown__motto-break { display: none; }
 }
 
+/* ---------- Bandeau « Entreprises à reprendre » (accueil) ---------- */
+.biz-band { padding: 18px 0 0; }
+.biz-band__box {
+  display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; gap: clamp(20px, 3vw, 40px);
+  padding: clamp(22px, 3vw, 34px);
+  background:
+    radial-gradient(50% 120% at 0% 0%, rgba(251, 191, 36, 0.12), transparent 70%),
+    radial-gradient(50% 120% at 100% 100%, rgba(255, 60, 172, 0.10), transparent 70%),
+    var(--surface);
+  border: 1px solid rgba(251, 191, 36, 0.32); border-radius: var(--radius);
+}
+.biz-band__eyebrow { margin: 0 0 6px; font-weight: 600; font-size: 0.82rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--amber); }
+.biz-band__title { margin: 0 0 8px; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.9rem, 3.4vw, 2.7rem); line-height: 1.05; letter-spacing: 0.03em; }
+.biz-band__title [data-biz-count] { color: var(--amber); text-shadow: 0 0 18px rgba(251, 191, 36, 0.35); }
+.biz-band__text p { margin: 0; color: var(--muted); }
+.biz-band__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.biz-band__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.biz-band__item { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.biz-band__logo {
+  display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; padding: 10px;
+  min-height: 0; overflow: hidden;   /* toutes les cases à la même hauteur, quelle que soit la taille du logo */
+  border-radius: 14px; background: radial-gradient(70% 70% at 50% 50%, rgba(255, 255, 255, 0.07), rgba(7, 7, 22, 0.6));
+  border: 1px solid var(--border);
+}
+.biz-band__logo img { width: 100%; height: 100%; min-height: 0; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5)); }
+.biz-band__logo img.biz__img--lift { filter: brightness(1.6) saturate(1.15) drop-shadow(0 0 14px rgba(59, 130, 246, 0.45)); }
+.biz-band__logo .biz__word { font-size: clamp(1.1rem, 2vw, 1.6rem); }
+.biz-band__logo .biz__word small { font-size: 0.45em; margin-top: 4px; letter-spacing: 0.22em; }
+.biz-band__logo .biz__word--cab small { padding: 2px 6px 2px 8px; }
+.biz-band__name { font-size: 0.85rem; font-weight: 600; color: var(--muted); line-height: 1.25; }
+@media (max-width: 900px) { .biz-band__box { grid-template-columns: 1fr; } }
+@media (max-width: 420px) { .biz-band__list { gap: 8px; } .biz-band__name { font-size: 0.75rem; } }
+
 /* ---------- Bandeaux réseaux (accueil) : TikTok puis Discord, même mise en page, couleurs de chaque réseau ---------- */
 .social-band { padding: 18px 0 8px; }
 .social-band__list { display: flex; flex-direction: column; gap: 14px; }

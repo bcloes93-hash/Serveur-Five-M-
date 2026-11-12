@@ -168,4 +168,41 @@
       if (opening.getTime() > Date.now()) timer = setInterval(tick, 1000);
     }
   }
+
+  /* ---------- Bandeau « Entreprises à reprendre » (accueil) ---------- */
+  // La page Entreprises fait foi : on y relit les cartes marquées « À reprendre » (badge biz__status--take)
+  // pour mettre à jour le nombre et les logos. En cas d'échec, la liste écrite dans index.html reste affichée.
+  var bizBand = $("[data-biz-band]");
+  if (bizBand && window.fetch && window.DOMParser) {
+    fetch("entreprises.html", { cache: "no-cache" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, "text/html");
+        var cards = $$(".biz", doc).filter(function (c) { return c.querySelector(".biz__status--take"); });
+        if (!cards.length) { bizBand.hidden = true; return; }
+        var n = cards.length;
+        $("[data-biz-count]", bizBand).textContent = n + (n > 1 ? " entreprises attendent" : " entreprise attend");
+        $("[data-biz-count]", bizBand).nextSibling.textContent = n > 1 ? " leur patron" : " son patron";
+        var list = $("[data-biz-list]", bizBand);
+        list.textContent = "";
+        cards.forEach(function (card) {
+          var li = document.createElement("li"); li.className = "biz-band__item";
+          var logo = document.createElement("span"); logo.className = "biz-band__logo";
+          var img = card.querySelector(".biz__logo img"), word = card.querySelector(".biz__word");
+          if (img) {
+            var im = document.createElement("img");
+            im.src = img.getAttribute("src"); im.alt = ""; im.loading = "lazy";
+            if (img.classList.contains("biz__img--lift")) im.className = "biz__img--lift";
+            logo.appendChild(im);
+          } else if (word) {
+            logo.appendChild(document.importNode(word, true));
+          }
+          var name = document.createElement("span"); name.className = "biz-band__name";
+          var title = card.querySelector(".biz__name");
+          name.textContent = title ? title.textContent : "";
+          li.appendChild(logo); li.appendChild(name); list.appendChild(li);
+        });
+      })
+      .catch(function () { /* on garde la liste de secours */ });
+  }
 })();

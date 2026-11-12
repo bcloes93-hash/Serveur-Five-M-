@@ -125,6 +125,32 @@
       </div>
     </section>
 
+    <!-- ENTREPRISES À REPRENDRE : liste ci-dessous en secours ; js/main.js la remet à jour
+         d'après les badges « À reprendre » de entreprises.html (nombre, logos), ou masque le bandeau s'il n'y en a plus. -->
+    <section class="biz-band" aria-labelledby="biz-band-title" data-biz-band>
+      <div class="container">
+        <div class="biz-band__box">
+          <div class="biz-band__text">
+            <p class="biz-band__eyebrow">Entreprises</p>
+            <h2 class="biz-band__title" id="biz-band-title"><span data-biz-count>6 entreprises attendent</span> leur patron</h2>
+            <p>Prenez la direction de l'une d'elles&nbsp;: la candidature se fait par ticket sur le Discord.</p>
+            <div class="biz-band__actions">
+              <a class="btn btn--primary" href="entreprises.html">Voir les entreprises</a>
+              <a class="btn btn--ghost" href="entreprises.html#reprendre">Comment reprendre</a>
+            </div>
+          </div>
+          <ul class="biz-band__list" data-biz-list>
+            <li class="biz-band__item"><span class="biz-band__logo"><img src="assets/entreprises/lspd.webp" alt="" loading="lazy" class="biz__img--lift" style="--tone: 59, 130, 246"></span><span class="biz-band__name">LSPD</span></li>
+            <li class="biz-band__item"><span class="biz-band__logo"><img src="assets/entreprises/ems.webp" alt="" loading="lazy"></span><span class="biz-band__name">EMS</span></li>
+            <li class="biz-band__item"><span class="biz-band__logo"><img src="assets/entreprises/bennys.webp" alt="" loading="lazy"></span><span class="biz-band__name">Benny's Motorworks</span></li>
+            <li class="biz-band__item"><span class="biz-band__logo"><img src="assets/entreprises/pdm.webp" alt="" loading="lazy"></span><span class="biz-band__name">PDM</span></li>
+            <li class="biz-band__item"><span class="biz-band__logo"><span class="biz__word biz__word--atomic">Atomic<small>Route Diner</small></span></span><span class="biz-band__name">Atomic Route Diner</span></li>
+            <li class="biz-band__item"><span class="biz-band__logo"><span class="biz__word biz__word--cab">Downtown<small>Cab Co.</small></span></span><span class="biz-band__name">Downtown Cab Co.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
     <!-- RÉSEAUX : TikTok (lien dans js/config.js, tiktok) puis Discord (discordInvite) -->
     <section class="social-band" aria-label="Nos réseaux">
       <div class="container social-band__list">
