@@ -89,6 +89,62 @@
           </article>
         </div>
 
+        <!-- Galerie : images tirées des vidéos du serveur (assets/galerie : « -petit » pour la grille, sans suffixe pour l'agrandissement) -->
+        <section class="gallery" aria-labelledby="gallery-title">
+          <h2 class="gallery__title" id="gallery-title">La ville en images</h2>
+          <p class="gallery__lead">Quelques images tournées sur le serveur. Cliquez sur une image pour l'agrandir.</p>
+          <div class="gallery__grid">
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/vue-aerienne.webp" data-gallery-item>
+              <img src="assets/galerie/vue-aerienne-petit.webp" width="480" height="540" alt="Los Santos vue d'en haut" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">Los Santos vue d'en haut</figcaption>
+          </figure>
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/centre-ville-nuit.webp" data-gallery-item>
+              <img src="assets/galerie/centre-ville-nuit-petit.webp" width="480" height="540" alt="Le centre-ville, de nuit" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">Le centre-ville, de nuit</figcaption>
+          </figure>
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/coucher-de-soleil.webp" data-gallery-item>
+              <img src="assets/galerie/coucher-de-soleil-petit.webp" width="480" height="540" alt="Coucher de soleil sur la côte" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">Coucher de soleil sur la côte</figcaption>
+          </figure>
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/pdm.webp" data-gallery-item>
+              <img src="assets/galerie/pdm-petit.webp" width="480" height="540" alt="Premium Deluxe Motorsport" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">Premium Deluxe Motorsport</figcaption>
+          </figure>
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/bennys.webp" data-gallery-item>
+              <img src="assets/galerie/bennys-petit.webp" width="480" height="540" alt="Le garage Benny's" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">Le garage Benny's</figcaption>
+          </figure>
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/atomic-cuisine.webp" data-gallery-item>
+              <img src="assets/galerie/atomic-cuisine-petit.webp" width="480" height="540" alt="En cuisine à l'Atomic Route Diner" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">En cuisine à l'Atomic Route Diner</figcaption>
+          </figure>
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/lspd.webp" data-gallery-item>
+              <img src="assets/galerie/lspd-petit.webp" width="480" height="540" alt="Le commissariat de la LSPD" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">Le commissariat de la LSPD</figcaption>
+          </figure>
+          <figure class="gallery__item reveal">
+            <a class="gallery__link" href="assets/galerie/champ-en-feu.webp" data-gallery-item>
+              <img src="assets/galerie/champ-en-feu-petit.webp" width="480" height="540" alt="Un champ en feu, la nuit" loading="lazy">
+            </a>
+            <figcaption class="gallery__caption">Un champ en feu, la nuit</figcaption>
+          </figure>
+          </div>
+        </section>
+
         <div class="page-body__actions">
           <a class="btn btn--primary" href="rejoindre.html">Nous rejoindre</a>
           <a class="btn btn--ghost" href="reglement.html">Lire le règlement</a>
@@ -124,7 +180,18 @@
     </p>
   </footer>
 
+  <dialog class="lightbox" id="lightbox" aria-label="Image agrandie">
+    <figure class="lightbox__figure">
+      <img class="lightbox__img" alt="">
+      <figcaption class="lightbox__caption"></figcaption>
+    </figure>
+    <button class="lightbox__btn lightbox__btn--close" type="button" data-lb="close" aria-label="Fermer">×</button>
+    <button class="lightbox__btn lightbox__btn--prev" type="button" data-lb="prev" aria-label="Image précédente">‹</button>
+    <button class="lightbox__btn lightbox__btn--next" type="button" data-lb="next" aria-label="Image suivante">›</button>
+  </dialog>
+
   <script src="js/config.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/galerie.js"></script>
 </body>
 </html>
