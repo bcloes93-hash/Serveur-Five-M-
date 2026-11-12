@@ -14,7 +14,7 @@ Site vitrine du serveur FiveM **Santos Legacy RP** : HTML/CSS/JS statique, sans 
 | `data/reglement.json` | Version d'origine du règlement (import initial dans le panel, et filet de sécurité si le panel est injoignable) |
 | `equipe.html`, `js/equipe.js`, `js/org-model.js` | Équipe du serveur : organigramme en direct (celui du panel, synchronisé), avec liste d'origine en secours |
 | `candidature.html` | Candidature WL (joueur) et candidature Staff, en deux onglets |
-| `js/config.js` | **Seul fichier à modifier** : lien Discord, code cfx.re et date d'ouverture |
+| `js/config.js` | **Seul fichier à modifier** : lien Discord, profil TikTok, code cfx.re et date d'ouverture |
 | `css/style.css` | Thème néon (couleurs en variables CSS au début du fichier) |
 | `js/main.js` | Menu mobile, animations, statistiques Discord et FiveM |
 | `js/candidature.js` | Onglets, validation et envoi des candidatures |

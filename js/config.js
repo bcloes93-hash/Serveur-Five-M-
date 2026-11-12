@@ -9,6 +9,9 @@ window.SITE_CONFIG = {
   // Lien d'invitation Discord (permanent de préférence).
   discordInvite: "https://discord.gg/hrWkJnqJs2",
 
+  // Profil TikTok (menu, bas de page et bandeau de l'accueil). Laisser vide pour masquer ces liens.
+  tiktok: "https://www.tiktok.com/@santos.legacy.rp",
+
   // Code cfx.re du serveur, ex. "abc123" pour https://cfx.re/join/abc123
   // Laisser vide tant que le serveur n'est pas enregistré : le site affiche
   // alors « Ouverture prochaine » et masque le bouton de connexion.

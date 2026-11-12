@@ -7,6 +7,10 @@
 
   /* ---------- Liens Discord / connexion ---------- */
   $$("[data-discord]").forEach(function (a) { if (cfg.discordInvite) a.href = cfg.discordInvite; });
+  // TikTok : lien du profil partout, ou rien du tout (liens et bandeau masqués) s'il n'est pas renseigné.
+  var tiktok = /^https:\/\/(www\.)?tiktok\.com\//.test(cfg.tiktok || "") ? cfg.tiktok : "";
+  $$("[data-tiktok]").forEach(function (a) { if (tiktok) a.href = tiktok; else a.hidden = true; });
+  $$("[data-tiktok-band]").forEach(function (el) { el.hidden = !tiktok; });
 
   var cfx = (cfg.cfxCode || "").trim();
   if (cfx) {
