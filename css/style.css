@@ -1193,6 +1193,20 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .page-body .steps { margin-top: 8px; }
 .page-body__actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
 
+/* ---------- Page « introuvable » (404.html) ---------- */
+.lost { padding: clamp(56px, 11vw, 130px) 0 clamp(64px, 10vw, 120px); }
+.lost__inner { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.lost__code {
+  margin: 0; font-family: var(--font-display); font-size: clamp(7rem, 24vw, 15rem); line-height: 0.9; letter-spacing: 0.04em;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 28px rgba(255, 60, 172, 0.45));
+  animation: neon-flicker 6s linear infinite;
+}
+.lost__title { margin: 18px 0 10px; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.05; letter-spacing: 0.03em; }
+.lost__text { margin: 0; max-width: 52ch; color: var(--muted); font-size: 1.1rem; }
+.lost__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 30px; }
+@keyframes neon-flicker { 0%, 18%, 22%, 62%, 64%, 100% { opacity: 1; } 20%, 63% { opacity: 0.35; } }
+
 /* ---------- Page « Entreprises » ---------- */
 /* Chaque carte a sa couleur (--tone : r, g, b), reprise par le halo derrière le logo et la bordure au survol. */
 .biz-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }

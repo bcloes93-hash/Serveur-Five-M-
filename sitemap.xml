@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Pages publiques du site, pour les moteurs de recherche. Ajouter ici toute nouvelle page. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://santoslegacyrp.com/</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://santoslegacyrp.com/serveur.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://santoslegacyrp.com/entreprises.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://santoslegacyrp.com/rejoindre.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://santoslegacyrp.com/reglement.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://santoslegacyrp.com/equipe.html</loc><lastmod>2026-11-12</lastmod></url>
+  <url><loc>https://santoslegacyrp.com/candidature.html</loc><lastmod>2026-11-12</lastmod></url>
+</urlset>
