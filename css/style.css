@@ -233,6 +233,9 @@ a:hover { color: #7be6ff; }
 .countdown__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
 @media (max-width: 400px) { .countdown__label { letter-spacing: 0.06em; } }
 
+/* Feu d'artifice de l'ouverture (js/feu.js) : toile par-dessus la page, sans bloquer les clics */
+.feu { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
+
 /* Phrase du Nouvel An sous le compte à rebours */
 /* Les 4 premières phrases sur une ligne (elles passent à la ligne proprement, sans séparateur à couper),
    puis « Nouveau serveur. » seul en dessous, plus grand, en néon. */

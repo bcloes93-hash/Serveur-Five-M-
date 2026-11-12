@@ -156,7 +156,10 @@
         if (left <= 0) {
           clock.hidden = true; dateEl.hidden = true; openEl.hidden = false;
           if (!cfx) setState("on", "Ouvert");   // avec un code cfx.re, c'est l'API Cfx.re qui donne l'état réel
-          if (timer) clearInterval(timer);
+          if (timer) {
+            clearInterval(timer);
+            if (window.SLFeu) window.SLFeu(10000);   // le compte à rebours vient d'arriver à zéro sous les yeux du visiteur
+          }
           return;
         }
         var d = Math.floor(left / 86400), h = Math.floor(left % 86400 / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
@@ -166,8 +169,14 @@
       cd.hidden = false;
       tick();
       if (opening.getTime() > Date.now()) timer = setInterval(tick, 1000);
+      // Visiteur qui arrive dans les 6 heures après l'ouverture : il a droit au feu d'artifice aussi
+      var since = Date.now() - opening.getTime();
+      if (window.SLFeu && since >= 0 && since < 6 * 3600 * 1000) window.SLFeu(7000);
     }
   }
+
+  // Lien d'essai du feu d'artifice : santoslegacyrp.com/?feu-d-artifice (joué même si les animations sont réduites)
+  if (window.SLFeu && /[?&]feu-d-artifice(=|&|$)/.test(location.search)) window.SLFeu(9000, true);
 
   /* ---------- Bandeau « Entreprises à reprendre » (accueil) ---------- */
   // La page Entreprises fait foi : on y relit les cartes marquées « À reprendre » (badge biz__status--take)
