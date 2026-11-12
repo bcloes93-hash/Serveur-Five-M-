@@ -1193,6 +1193,31 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .page-body .steps { margin-top: 8px; }
 .page-body__actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
 
+/* ---------- FAQ (page Rejoindre) ---------- */
+.faq { margin-top: clamp(48px, 7vw, 84px); max-width: 920px; }
+.faq__title {
+  margin: 0 0 18px; font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(2rem, 4vw, 2.8rem); letter-spacing: 0.03em; line-height: 1.05;
+}
+.faq__title::after { content: ""; display: block; width: 64px; height: 4px; margin-top: 12px; border-radius: 4px; background: var(--grad); }
+.faq__list { display: grid; gap: 10px; }
+.faq__item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); transition: border-color .2s, background .2s; }
+.faq__item[open] { background: var(--surface-hover); border-color: rgba(34, 211, 255, 0.45); }
+.faq__item summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 16px 20px; font-weight: 600; font-size: 1.05rem; border-radius: var(--radius);
+}
+.faq__item summary::-webkit-details-marker { display: none; }
+.faq__item summary::after {
+  content: "+"; flex: none; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(34, 211, 255, 0.5);
+  color: var(--cyan); font-size: 1.25rem; line-height: 1; transition: transform .2s;
+}
+.faq__item[open] summary::after { transform: rotate(45deg); }
+.faq__item summary:hover { color: #fff; }
+.faq__answer { padding: 0 20px 18px; color: var(--muted); }
+.faq__answer p { margin: 0; max-width: 70ch; }
+
 /* ---------- Page « introuvable » (404.html) ---------- */
 .lost { padding: clamp(56px, 11vw, 130px) 0 clamp(64px, 10vw, 120px); }
 .lost__inner { display: flex; flex-direction: column; align-items: center; text-align: center; }

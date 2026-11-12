@@ -126,6 +126,19 @@
 
     if (!cfx && Date.now() < opening.getTime()) setState("soon", "Ouverture le " + when.short);
 
+    // Page Rejoindre : la date d'ouverture dans l'étape 4 et dans la FAQ
+    var isOpen = Date.now() >= opening.getTime();
+    $$("[data-opening-step]").forEach(function (p) {
+      p.textContent = isOpen
+        ? "Le serveur est ouvert : retrouvez le lien de connexion sur le Discord."
+        : "Le serveur ouvre le " + when.long.charAt(0).toLowerCase() + when.long.slice(1) + " (heure de Paris). En attendant, retrouvez-nous sur le Discord.";
+    });
+    $$("[data-opening-answer]").forEach(function (p) {
+      p.textContent = isOpen
+        ? "Il est ouvert depuis le " + when.long.charAt(0).toLowerCase() + when.long.slice(1) + " (heure de Paris)."
+        : "Le " + when.long.charAt(0).toLowerCase() + when.long.slice(1) + " (heure de Paris). Le compte à rebours est sur la page d'accueil.";
+    });
+
     var cd = $("[data-countdown]");
     if (cd) {
       var clock = $("[data-countdown-clock]", cd), dateEl = $("[data-countdown-date]", cd), openEl = $("[data-countdown-open]", cd);
