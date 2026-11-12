@@ -1305,11 +1305,23 @@ mark { color: #fff; background: rgba(255, 60, 172, 0.38); border-radius: 4px; pa
 .biz__sub { margin: 4px 0 10px; color: rgb(var(--tone)); font-weight: 600; font-size: 0.95rem; }
 .biz__text { margin: 0; color: var(--muted); }
 
+/* Deux encadrés côte à côte : travailler dans une entreprise / reprendre une entreprise */
+.biz-help { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: clamp(36px, 5vw, 56px); align-items: start; }
+@media (max-width: 900px) { .biz-help { grid-template-columns: 1fr; } }
 .biz-how {
-  margin-top: clamp(36px, 5vw, 56px); padding: clamp(22px, 3vw, 34px);
+  padding: clamp(22px, 3vw, 34px); scroll-margin-top: 90px;
   background: linear-gradient(135deg, rgba(34, 211, 255, 0.07), rgba(255, 60, 172, 0.07));
   border: 1px solid var(--border); border-radius: var(--radius);
 }
+.biz-how--take { background: linear-gradient(135deg, rgba(251, 191, 36, 0.09), rgba(255, 60, 172, 0.06)); border-color: rgba(251, 191, 36, 0.35); }
+.biz-how__steps { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 10px; }
+.biz-how__steps li { counter-increment: step; position: relative; padding-left: 40px; min-height: 28px; color: var(--muted); }
+.biz-how__steps li::before {
+  content: counter(step); position: absolute; left: 0; top: -1px; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%; font-weight: 700; font-size: 0.9rem;
+  color: #1a1206; background: var(--amber); box-shadow: 0 0 14px rgba(251, 191, 36, 0.45);
+}
+.biz-how__steps strong { color: var(--text); }
 .biz-how__title { margin: 0 0 10px; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.8rem, 3vw, 2.4rem); letter-spacing: 0.04em; }
 .biz-how p { margin: 0 0 8px; max-width: 70ch; color: var(--muted); }
 .biz-how p strong { color: var(--text); }
