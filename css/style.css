@@ -255,22 +255,29 @@ a:hover { color: #7be6ff; }
   .countdown__motto .countdown__motto-break { display: none; }
 }
 
-/* ---------- Bandeau TikTok (accueil) ---------- */
+/* ---------- Bandeaux réseaux (accueil) : TikTok puis Discord, même mise en page, couleurs de chaque réseau ---------- */
 .social-band { padding: 18px 0 8px; }
+.social-band__list { display: flex; flex-direction: column; gap: 14px; }
 .social-band__box {
+  --glow-a: rgba(139, 92, 246, 0.10); --glow-b: rgba(255, 60, 172, 0.10);
   display: flex; align-items: center; gap: clamp(16px, 2.5vw, 28px);
   padding: clamp(18px, 2.4vw, 26px) clamp(18px, 3vw, 32px);
   background:
-    radial-gradient(40% 140% at 0% 50%, rgba(37, 244, 238, 0.10), transparent 70%),
-    radial-gradient(40% 140% at 100% 50%, rgba(254, 44, 85, 0.10), transparent 70%),
+    radial-gradient(40% 140% at 0% 50%, var(--glow-a), transparent 70%),
+    radial-gradient(40% 140% at 100% 50%, var(--glow-b), transparent 70%),
     var(--surface);
   border: 1px solid var(--border); border-radius: var(--radius);
 }
+.social-band__box--tiktok { --glow-a: rgba(37, 244, 238, 0.10); --glow-b: rgba(254, 44, 85, 0.10); }
+.social-band__box--discord { --glow-a: rgba(88, 101, 242, 0.20); --glow-b: rgba(88, 101, 242, 0.10); }
 .social-band__logo {
   flex: none; display: flex; align-items: center; justify-content: center;
   width: 64px; height: 64px; border-radius: 18px; background: #000; border: 1px solid rgba(255, 255, 255, 0.12);
 }
-.social-band__logo svg { width: 30px; height: 30px; fill: #fff; filter: drop-shadow(-2px -2px 0 #25f4ee) drop-shadow(2px 2px 0 #fe2c55); }
+.social-band__logo svg { width: 30px; height: 30px; fill: #fff; }
+.social-band__box--tiktok .social-band__logo svg { filter: drop-shadow(-2px -2px 0 #25f4ee) drop-shadow(2px 2px 0 #fe2c55); }
+.social-band__box--discord .social-band__logo { background: #5865f2; border-color: rgba(255, 255, 255, 0.18); box-shadow: 0 8px 24px rgba(88, 101, 242, 0.35); }
+.social-band__box--discord .social-band__logo svg { width: 34px; height: 34px; }
 .social-band__text { flex: 1; min-width: 0; }
 .social-band__title { margin: 0 0 2px; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.6rem, 2.6vw, 2.1rem); letter-spacing: 0.04em; line-height: 1.1; }
 .social-band__text p { margin: 0; color: var(--muted); }
